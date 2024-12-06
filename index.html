@@ -84,6 +84,11 @@
             margin-bottom: 8px;
             font-size: 0.875rem;
         }
+        /* Fix for the -moz-user-select warning */
+        .leaflet-overlay-pane svg {
+            user-select: none;
+            -webkit-user-select: none; /* For Safari */
+        }
     </style>
 </head>
 <body>
@@ -136,20 +141,15 @@
         let parcelUses = new Map();
 
         function initMap() {
-            // Initialize map centered on Cleveland
             map = L.map('map', {
                 zoomControl: true,
                 minZoom: 10,
                 maxZoom: 19
             }).setView([41.49, -81.68], 13);
 
-            // Add OpenStreetMap tile layer
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap contributors'
             }).addTo(map);
-
-            // Create a layer group for parcels
-            parcelGroup = L.featureGroup().addTo(map);
 
             loadLandBankParcels();
         }
@@ -159,54 +159,41 @@
                 const response = await fetch('City_Landbank_2552617068183058004.geojson');
                 const data = await response.json();
 
-                data.features.forEach(feature => {
-                    const parcelId = feature.properties.PARCELPIN;
+                L.geoJSON(data, {
+                    onEachFeature: function (feature, layer) {
+                        const parcelId = feature.properties.PARCELPIN;
 
-                    // Convert feature to proper GeoJSON
-                    const geoJsonFeature = {
-                        type: 'Feature',
-                        properties: feature.properties,
-                        geometry: feature.geometry
-                    };
+                        layer.on({
+                            click: function(e) {
+                                console.log('Clicked parcel:', parcelId);
+                                cycleUse(parcelId);
+                                L.DomEvent.stopPropagation(e);
+                            },
+                            mouseover: function(e) {
+                                layer.setStyle({
+                                    weight: 2,
+                                    opacity: 1
+                                });
+                            },
+                            mouseout: function(e) {
+                                layer.setStyle({
+                                    weight: 1,
+                                    opacity: 0.8
+                                });
+                            }
+                        });
 
-                    // Create a single layer for this parcel
-                    const layer = L.geoJSON(geoJsonFeature, {
-                        interactive: true, // Make sure it's clickable
-                        style: {
-                            color: '#000',
-                            weight: 1,
-                            opacity: 1,
-                            fillOpacity: 0.6,
-                            fillColor: uses[0].color
-                        }
-                    });
-
-                    // Add click handler directly to the layer
-                    layer.on({
-                        click: function(e) {
-                            console.log('Clicked parcel:', parcelId);
-                            cycleUse(parcelId, layer);
-                            L.DomEvent.stopPropagation(e);
-                        },
-                        mouseover: function(e) {
-                            layer.setStyle({
-                                weight: 2,
-                                opacity: 1
-                            });
-                        },
-                        mouseout: function(e) {
-                            layer.setStyle({
-                                weight: 1,
-                                opacity: 0.8
-                            });
-                        }
-                    });
-
-                    // Store reference and add to map
-                    parcelLayers.set(parcelId, layer);
-                    parcelUses.set(parcelId, 0);
-                    layer.addTo(map);
-                });
+                        parcelLayers.set(parcelId, layer);
+                        parcelUses.set(parcelId, 0);
+                    },
+                    style: {
+                        color: '#000',
+                        weight: 1,
+                        opacity: 1,
+                        fillOpacity: 0.6,
+                        fillColor: uses[0].color
+                    }
+                }).addTo(map);
 
                 console.log('Parcels loaded:', parcelLayers.size);
                 loadSavedUses();
@@ -225,25 +212,20 @@
                 return;
             }
 
-            // Get current use index and cycle to next
             let currentIndex = parcelUses.get(parcelId) || 0;
             currentIndex = (currentIndex + 1) % uses.length;
 
             console.log('New use index:', currentIndex, 'Color:', uses[currentIndex].color);
 
-            // Update use
             parcelUses.set(parcelId, currentIndex);
 
-            // Update style
             layer.setStyle({
                 fillColor: uses[currentIndex].color,
                 fillOpacity: 0.6
             });
 
-            // Force Leaflet to redraw the layer
-            layer.redraw(); 
+            layer.redraw();
 
-            // Save to localStorage
             saveUses();
         }
 
@@ -269,7 +251,6 @@
             }
         }
 
-        // Initialize everything
         initMap();
     </script>
 </body>
