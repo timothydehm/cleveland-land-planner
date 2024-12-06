@@ -197,6 +197,29 @@
                 iframe.src = 'https://felt.com/embed/map/CLevel-drLnBHYxSb2YTaF1SJEkJB';
                 mapElement.appendChild(iframe);
 
+                // Listen for messages from the Felt map
+                window.addEventListener('message', (event) => {
+                    // Make sure the message is from Felt
+                    if (event.origin !== 'https://felt.com') return;
+                    
+                    // Handle the selected feature data
+                    if (event.data.type === 'feature_selected') {
+                        const feature = event.data.feature;
+                        if (feature && feature.properties) {
+                            const parcel = {
+                                id: feature.properties.parcelpin,
+                                address: feature.properties.par_addr_all,
+                                properties: {
+                                    ward: feature.properties.ward || 'N/A',
+                                    sqft: feature.properties.total_square_ft || 'N/A',
+                                    zoning: feature.properties.zoning || 'N/A'
+                                }
+                            };
+                            selectParcel(parcel);
+                        }
+                    }
+                });
+
                 // Load land bank parcels after map loads
                 await loadLandBankParcels();
             } catch (error) {
@@ -259,6 +282,13 @@
             document.getElementById('parcel-zoning').textContent = parcel.properties.zoning;
             document.getElementById('parcel-use').textContent = parcel.currentUse || 'Unassigned';
             document.getElementById('assign-use-btn').disabled = !selectedCategory;
+
+            // Send message to Felt map to highlight the selected parcel
+            const iframe = document.querySelector('#felt-map iframe');
+            iframe.contentWindow.postMessage({
+                type: 'highlight_feature',
+                featureId: parcel.id
+            }, 'https://felt.com');
         }
 
         function deselectParcel() {
@@ -314,6 +344,20 @@
         document.getElementById('assign-use-btn').onclick = () => {
             if (selectedParcel && selectedCategory !== null) {
                 selectedParcel.currentUse = categories[selectedCategory].name;
+                
+                // Send message to Felt map to update the parcel color
+                const iframe = document.querySelector('#felt-map iframe');
+                iframe.contentWindow.postMessage({
+                    type: 'update_feature_style',
+                    featureId: selectedParcel.id,
+                    style: {
+                        fillColor: categories[selectedCategory].color,
+                        fillOpacity: 0.7,
+                        color: '#000000',
+                        weight: 1
+                    }
+                }, 'https://felt.com');
+
                 selectParcel(selectedParcel); // Refresh display
             }
         };
