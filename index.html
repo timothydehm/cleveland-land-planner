@@ -42,23 +42,6 @@
         #felt-map {
             width: 100%;
             height: 100%;
-            position: relative;
-            z-index: 1;
-        }
-        #overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 2;
-            pointer-events: none;
-        }
-        .parcel-overlay {
-            fill-opacity: 0.5;
-            stroke: #000;
-            stroke-width: 1;
-            pointer-events: none;
         }
         .header {
             padding: 20px;
@@ -187,7 +170,6 @@
         </div>
         <div class="map-container">
             <div id="felt-map"></div>
-            <svg id="overlay"></svg>
         </div>
     </div>
 
@@ -200,52 +182,10 @@
             { name: 'Public Space', color: '#fde68a' }
         ];
 
-        let feltMap;
         let selectedParcel = null;
         let selectedCategory = null;
         let parcels = new Map();
         let parcelStyles = new Map();
-
-        function projectCoordinates(lon, lat, mapBounds, svgBounds) {
-            const x = (lon - mapBounds.west) / (mapBounds.east - mapBounds.west) * svgBounds.width;
-            const y = (1 - (lat - mapBounds.south) / (mapBounds.north - mapBounds.south)) * svgBounds.height;
-            return [x, y];
-        }
-
-        function createSvgPath(geometry, mapBounds, svgBounds) {
-            const rings = geometry.coordinates[0];
-            let path = '';
-            rings.forEach((coord, i) => {
-                const [x, y] = projectCoordinates(coord[0], coord[1], mapBounds, svgBounds);
-                path += (i === 0 ? 'M' : 'L') + x + ',' + y;
-            });
-            path += 'Z';
-            return path;
-        }
-
-        function updateOverlay() {
-            const overlay = document.getElementById('overlay');
-            const bounds = overlay.getBoundingClientRect();
-            const mapBounds = {
-                north: 41.53,  // Approximate Cleveland bounds
-                south: 41.47,
-                east: -81.63,
-                west: -81.69
-            };
-            
-            overlay.innerHTML = '';
-            
-            parcelStyles.forEach((style, parcelId) => {
-                const parcel = parcels.get(parcelId);
-                if (!parcel) return;
-                
-                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                path.setAttribute('d', createSvgPath(parcel.geometry, mapBounds, bounds));
-                path.setAttribute('fill', categories[style.categoryIndex].color);
-                path.classList.add('parcel-overlay');
-                overlay.appendChild(path);
-            });
-        }
 
         async function initFeltMap() {
             try {
@@ -254,7 +194,6 @@
                 iframe.style.width = '100%';
                 iframe.style.height = '100%';
                 iframe.style.border = 'none';
-                // Add allow-scripts and allow-same-origin to the sandbox attribute
                 iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups');
                 iframe.src = 'https://felt.com/embed/map/CLevel-drLnBHYxSb2YTaF1SJEkJB?hideControls=1&hideSidebar=1&hideHeader=1';
                 mapElement.appendChild(iframe);
@@ -291,18 +230,6 @@
             }
         }
 
-        function handleMapMessage(event) {
-            if (event.origin !== 'https://felt.com') return;
-            
-            const data = event.data;
-            if (data && data.properties) {
-                const parcel = parcels.get(data.properties.parcelpin);
-                if (parcel) {
-                    selectParcel(parcel);
-                }
-            }
-        }
-
         async function loadLandBankParcels() {
             try {
                 const apiUrl = 'https://services3.arcgis.com/dty2kHktVXHrqO8i/arcgis/rest/services/City_Landbank/FeatureServer/0/query';
@@ -322,24 +249,17 @@
                     const parcel = {
                         id: feature.attributes.PARCELPIN,
                         address: feature.attributes.par_addr_all || 'No address available',
-                        geometry: {
-                            type: 'Polygon',
-                            coordinates: feature.geometry.rings.map(ring => 
-                                ring.map(coord => [coord[0], coord[1]])
-                            )
-                        },
-                        currentUse: null,
                         properties: {
                             ward: feature.attributes.ward || 'N/A',
                             sqft: feature.attributes.total_square_ft || 'N/A',
                             zoning: feature.attributes.zoning || 'N/A'
                         }
                     };
-                    
                     parcels.set(parcel.id, parcel);
                 }
 
                 console.log('Loaded parcels:', parcels.size);
+                loadStyles();
             } catch (error) {
                 console.error('Error loading land bank parcels:', error);
             }
@@ -348,12 +268,19 @@
         function selectParcel(parcel) {
             selectedParcel = parcel;
             
+            // Update UI
             document.getElementById('parcel-id').textContent = parcel.id;
             document.getElementById('parcel-address').textContent = parcel.address;
             document.getElementById('parcel-ward').textContent = parcel.properties.ward;
             document.getElementById('parcel-area').textContent = `${parcel.properties.sqft} sq ft`;
             document.getElementById('parcel-zoning').textContent = parcel.properties.zoning;
-            document.getElementById('parcel-use').textContent = parcel.currentUse || 'Unassigned';
+            
+            // Get existing style if any
+            const style = parcelStyles.get(parcel.id);
+            const currentUse = style ? categories[style.categoryIndex].name : 'Unassigned';
+            document.getElementById('parcel-use').textContent = currentUse;
+            
+            // Enable/disable assign button based on category selection
             document.getElementById('assign-use-btn').disabled = !selectedCategory;
         }
 
@@ -392,28 +319,7 @@
             document.getElementById('assign-use-btn').disabled = !selectedParcel;
         }
 
-        function saveStyles() {
-            const styles = {};
-            parcelStyles.forEach((style, parcelId) => {
-                styles[parcelId] = style;
-            });
-            localStorage.setItem('parcelStyles', JSON.stringify(styles));
-        }
-
-        function loadStyles() {
-            const saved = localStorage.getItem('parcelStyles');
-            if (saved) {
-                const styles = JSON.parse(saved);
-                parcelStyles = new Map(Object.entries(styles));
-                updateOverlay();
-            }
-        }
-
-        // Set up the assign button
         async function applyStyle(parcelId, categoryIndex) {
-            const iframe = document.querySelector('#felt-map iframe');
-            if (!iframe) return;
-
             // Store the style locally
             parcelStyles.set(parcelId, {
                 categoryIndex: categoryIndex
@@ -429,7 +335,23 @@
             }
         }
 
-        // Modify the assign button click handler
+        function saveStyles() {
+            const styles = {};
+            parcelStyles.forEach((style, parcelId) => {
+                styles[parcelId] = style;
+            });
+            localStorage.setItem('parcelStyles', JSON.stringify(styles));
+        }
+
+        function loadStyles() {
+            const saved = localStorage.getItem('parcelStyles');
+            if (saved) {
+                const styles = JSON.parse(saved);
+                parcelStyles = new Map(Object.entries(styles));
+            }
+        }
+
+        // Set up the assign button
         document.getElementById('assign-use-btn').onclick = () => {
             if (selectedParcel && selectedCategory !== null) {
                 applyStyle(selectedParcel.id, selectedCategory);
@@ -437,9 +359,7 @@
         };
 
         // Initialize everything
-        initFeltMap().then(() => {
-            loadStyles();
-        });
+        initFeltMap();
         initLegend();
     </script>
 </body>
