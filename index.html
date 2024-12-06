@@ -4,37 +4,37 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cleveland Land Bank Planner</title>
-    <script type="text/javascript" src="https://cdn.felt.com/felt-sdk/v0.0.24/felt-sdk.js"></script>
+    <script src="https://cdn.feltmaps.com/js-sdk/cdn/js-sdk.js"></script>
     <style>
         body {
             font-family: system-ui, -apple-system, sans-serif;
             margin: 0;
             padding: 20px;
             background-color: #f5f5f5;
+            display: flex;
+            justify-content: center;
         }
         .container {
             display: flex;
             gap: 20px;
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-        .sidebar {
-            width: 300px;
-            flex-shrink: 0;
+            max-width: 1200px;
+            width: 100%;
         }
         .card {
             background: white;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
+            flex: 1;
         }
         .map-container {
-            flex-grow: 1;
-            height: calc(100vh - 40px);
+            flex: 2;
+            height: 600px;
+            min-height: 500px;
             background: white;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             overflow: hidden;
+            position: relative;
         }
         #felt-map {
             width: 100%;
@@ -43,6 +43,9 @@
         .header {
             padding: 20px;
             border-bottom: 1px solid #e5e5e5;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         .title {
             margin: 0;
@@ -50,65 +53,63 @@
             color: #374151;
         }
         .content {
-            padding: 20px;
+            padding: 24px;
+        }
+        .grid {
+            display: grid;
+            gap: 12px;
+            margin-bottom: 32px;
         }
         .legend {
             display: grid;
+            grid-template-columns: repeat(2, 1fr);
             gap: 16px;
         }
         .legend-item {
             display: flex;
             align-items: center;
             gap: 12px;
-            padding: 8px;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        .legend-item:hover {
-            background-color: #f3f4f6;
-        }
-        .legend-item.selected {
-            background-color: #e5e7eb;
         }
         .legend-color {
-            width: 24px;
-            height: 24px;
-            border-radius: 4px;
+            width: 32px;
+            height: 32px;
             border: 1px solid #e5e5e5;
+            border-radius: 4px;
+        }
+        .legend-color.at-limit {
+            border: 2px solid #22c55e;
+            background-color: #f0fdf4;
+        }
+        .legend-color.over-limit {
+            border: 2px solid #ef4444;
+            background-color: #fef2f2;
         }
         .legend-text {
-            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
         }
         .legend-name {
             font-size: 0.875rem;
             color: #374151;
-            font-weight: 500;
         }
         .legend-count {
             font-size: 0.75rem;
             color: #6b7280;
         }
-        .parcel-info {
+        .reset-btn {
+            background: none;
+            border: none;
+            padding: 8px;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+        .reset-btn:hover {
+            background-color: #f3f4f6;
+        }
+        .controls {
+            margin-top: 20px;
             padding: 20px;
-        }
-        .parcel-title {
-            font-size: 1rem;
-            font-weight: 600;
-            margin-bottom: 12px;
-        }
-        .info-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 8px;
-            font-size: 0.875rem;
-        }
-        .info-label {
-            color: #6b7280;
-        }
-        .info-value {
-            color: #374151;
-            font-weight: 500;
+            border-top: 1px solid #e5e5e5;
         }
         .btn {
             background-color: #3b82f6;
@@ -118,47 +119,50 @@
             border-radius: 6px;
             cursor: pointer;
             font-size: 0.875rem;
-            width: 100%;
-            margin-top: 12px;
+            margin-right: 8px;
         }
         .btn:hover {
             background-color: #2563eb;
-        }
-        .btn:disabled {
-            background-color: #e5e7eb;
-            color: #9ca3af;
-            cursor: not-allowed;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="sidebar">
-            <div class="card">
-                <div class="header">
-                    <h1 class="title">Land Bank Planner</h1>
-                </div>
-                <div class="content">
-                    <div class="legend" id="legend"></div>
-                </div>
+        <div class="card">
+            <div class="header">
+                <h1 class="title">Land Use Planner</h1>
+                <button class="reset-btn" onclick="resetGrid()" title="Reset map">↺</button>
             </div>
-            <div class="card" id="parcel-details">
-                <div class="parcel-info">
-                    <div class="parcel-title">Select a parcel</div>
-                    <div class="info-row">
-                        <span class="info-label">Parcel ID:</span>
-                        <span class="info-value" id="parcel-id">-</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">Address:</span>
-                        <span class="info-value" id="parcel-address">-</span>
-                    </div>
-                    <div class="info-row">
-                        <span class="info-label">Current Use:</span>
-                        <span class="info-value" id="parcel-use">-</span>
-                    </div>
-                    <button class="btn" id="assign-use-btn" disabled>Assign Selected Use</button>
+            <div class="content">
+                <div class="legend" id="legend"></div>
+            </div>
+            <div class="parcel-info">
+                <div class="parcel-title">Select a parcel</div>
+                <div class="info-row">
+                    <span class="info-label">Parcel ID:</span>
+                    <span class="info-value" id="parcel-id">-</span>
                 </div>
+                <div class="info-row">
+                    <span class="info-label">Address:</span>
+                    <span class="info-value" id="parcel-address">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Ward:</span>
+                    <span class="info-value" id="parcel-ward">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Site Area:</span>
+                    <span class="info-value" id="parcel-area">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Zoning:</span>
+                    <span class="info-value" id="parcel-zoning">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Planned Use:</span>
+                    <span class="info-value" id="parcel-use">-</span>
+                </div>
+                <button class="btn" id="assign-use-btn" disabled>Assign Selected Use</button>
             </div>
         </div>
         <div class="map-container">
@@ -178,26 +182,41 @@
         let feltMap;
         let selectedCategory = null;
         let selectedParcel = null;
-        let parcels = new Map(); // Store parcel data
+        let parcels = new Map();
 
-        // Initialize Felt Map
         async function initFeltMap() {
             try {
-                // Wait for the Felt SDK to load
-                if (typeof window.Felt === 'undefined') {
+                // Wait for the SDK to load
+                if (typeof FeltMaps === 'undefined') {
                     console.error('Felt SDK not loaded');
                     return;
                 }
 
-                feltMap = await window.Felt.map({
-                    element: document.getElementById('felt-map'),
-                    url: 'https://felt.com/embed/CLevel-drLnBHYxSb2YTaF1SJEkJB',
+                // Initialize the controller
+                feltMap = await FeltMaps.createController({
+                    elementId: 'felt-map',
+                    mapId: 'CLevel-drLnBHYxSb2YTaF1SJEkJB',
+                    options: {
+                        uiControls: {
+                            cooperativeGestures: false,
+                            fullScreenButton: false,
+                            showLegend: false,
+                        }
+                    }
                 });
 
                 // Center map on Cleveland
                 await feltMap.setView({
-                    center: [-81.6944, 41.4993], // Cleveland coordinates
+                    center: [-81.6944, 41.4993],
                     zoom: 12
+                });
+
+                // Load land bank parcels after map initialization
+                await loadLandBankParcels();
+
+                // Set up map event listeners
+                feltMap.onPointerClick({
+                    handler: handleMapClick
                 });
 
             } catch (error) {
@@ -205,7 +224,6 @@
             }
         }
 
-        // Load land bank parcels from ArcGIS REST API
         async function loadLandBankParcels() {
             try {
                 // Query the Cleveland Land Bank parcels using ArcGIS REST API
@@ -224,13 +242,11 @@
                 
                 // Process and add parcels to the map
                 for (const feature of data.features) {
-                    // Convert ArcGIS feature attributes to our parcel format
                     const parcel = {
                         id: feature.attributes.PARCELPIN,
                         address: feature.attributes.SITEADDRES || 'No address available',
                         geometry: {
                             type: 'Polygon',
-                            // Convert ESRI geometry to GeoJSON format
                             coordinates: feature.geometry.rings.map(ring => 
                                 ring.map(coord => [coord[0], coord[1]])
                             )
@@ -244,31 +260,13 @@
                     };
                     
                     parcels.set(parcel.id, parcel);
-                    
-                    // Add parcel to Felt map
-                    const feltFeature = await feltMap.addElement({
-                        type: 'Polygon',
-                        coordinates: feature.geometry.coordinates,
-                        style: {
-                            fillColor: '#ffffff',
-                            fillOpacity: 0.5,
-                            color: '#000000',
-                            weight: 1
-                        },
-                        properties: {
-                            id: parcel.id
-                        }
-                    });
-                    
-                    parcel.feltFeatureId = feltFeature.id;
                 }
             } catch (error) {
                 console.error('Error loading land bank parcels:', error);
             }
         }
 
-        // Handle map clicks
-        async function handleMapClick(e) {
+        function handleMapClick(e) {
             const feature = e.features?.[0];
             if (!feature) {
                 deselectParcel();
@@ -281,61 +279,32 @@
             }
         }
 
-        // Select a parcel
         function selectParcel(parcel) {
             selectedParcel = parcel;
             
             // Update UI
             document.getElementById('parcel-id').textContent = parcel.id;
             document.getElementById('parcel-address').textContent = parcel.address;
+            document.getElementById('parcel-ward').textContent = parcel.properties.ward;
+            document.getElementById('parcel-area').textContent = `${parcel.properties.sqft} sq ft`;
+            document.getElementById('parcel-zoning').textContent = parcel.properties.zoning;
             document.getElementById('parcel-use').textContent = parcel.currentUse || 'Unassigned';
             document.getElementById('assign-use-btn').disabled = !selectedCategory;
-
-            // Highlight parcel on map
-            if (feltMap) {
-                feltMap.setFeatureState(parcel.feltFeatureId, { selected: true });
-            }
         }
 
-        // Deselect current parcel
         function deselectParcel() {
-            if (selectedParcel && feltMap) {
-                feltMap.setFeatureState(selectedParcel.feltFeatureId, { selected: false });
-            }
-
             selectedParcel = null;
             
             // Update UI
             document.getElementById('parcel-id').textContent = '-';
             document.getElementById('parcel-address').textContent = '-';
+            document.getElementById('parcel-ward').textContent = '-';
+            document.getElementById('parcel-area').textContent = '-';
+            document.getElementById('parcel-zoning').textContent = '-';
             document.getElementById('parcel-use').textContent = '-';
             document.getElementById('assign-use-btn').disabled = true;
         }
 
-        // Update parcel use
-        async function assignUse() {
-            if (!selectedParcel || !selectedCategory) return;
-
-            const parcel = parcels.get(selectedParcel.id);
-            parcel.currentUse = categories[selectedCategory].name;
-
-            // Update parcel style on map
-            if (feltMap) {
-                await feltMap.updateElement(parcel.feltFeatureId, {
-                    style: {
-                        fillColor: categories[selectedCategory].color,
-                        fillOpacity: 0.5,
-                        color: '#000000',
-                        weight: 1
-                    }
-                });
-            }
-
-            // Update UI
-            selectParcel(parcel);
-        }
-
-        // Initialize legend
         function initLegend() {
             const legendElement = document.getElementById('legend');
             
@@ -360,7 +329,6 @@
             });
         }
 
-        // Select a category
         function selectCategory(index) {
             selectedCategory = index;
             
@@ -373,8 +341,25 @@
             document.getElementById('assign-use-btn').disabled = !selectedParcel;
         }
 
+        function resetGrid() {
+            parcels.forEach(parcel => {
+                parcel.currentUse = null;
+            });
+            deselectParcel();
+            selectedCategory = null;
+            document.querySelectorAll('.legend-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+        }
+
         // Initialize everything
-        document.getElementById('assign-use-btn').onclick = assignUse;
+        document.getElementById('assign-use-btn').onclick = () => {
+            if (selectedParcel && selectedCategory !== null) {
+                selectedParcel.currentUse = categories[selectedCategory].name;
+                selectParcel(selectedParcel); // Refresh display
+            }
+        };
+
         initFeltMap();
         initLegend();
     </script>
