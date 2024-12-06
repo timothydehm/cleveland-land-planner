@@ -212,7 +212,9 @@
                     geometryType: 'esriGeometryPolygon',
                     spatialRel: 'esriSpatialRelIntersects',
                     outSR: '4326',
-                    f: 'json'
+                    f: 'json',
+                    returnGeometry: true,
+                    maxRecordCount: 5000  // Request more records
                 });
 
                 const response = await fetch(`${apiUrl}?${params}`);
@@ -222,11 +224,11 @@
                 data.features.forEach(feature => {
                     const parcel = {
                         id: feature.attributes.PARCELPIN,
-                        address: feature.attributes.par_addr_all || 'No address available',
+                        address: feature.attributes.SITEADDRES || 'No address available',
                         properties: {
-                            ward: feature.attributes.ward || 'N/A',
-                            sqft: feature.attributes.total_square_ft || 'N/A',
-                            zoning: feature.attributes.zoning || 'N/A'
+                            ward: feature.attributes.WARD || 'N/A',
+                            sqft: feature.attributes.SITEAREA || 'N/A',
+                            zoning: feature.attributes.ZONING || 'N/A'
                         }
                     };
 
@@ -338,10 +340,14 @@
             const layer = parcelLayers.get(parcelId);
             if (!layer) return;
 
-            // Apply style to the layer
-            layer.setStyle({
-                fillColor: categories[categoryIndex].color,
-                fillOpacity: 0.6
+            // Apply style to the layer - need to access the actual layer within the LayerGroup
+            layer.eachLayer((l) => {
+                l.setStyle({
+                    fillColor: categories[categoryIndex].color,
+                    fillOpacity: 0.6,
+                    color: '#000',
+                    weight: 1
+                });
             });
 
             // Store the style
