@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cleveland Land Bank Planner</title>
-    <script src="https://cdn.felt.com/felt-map-sdk/felt-map-sdk.js"></script>
+    <script type="text/javascript" src="https://cdn.felt.com/felt-sdk/v0.0.24/felt-sdk.js"></script>
     <style>
         body {
             font-family: system-ui, -apple-system, sans-serif;
@@ -183,9 +183,14 @@
         // Initialize Felt Map
         async function initFeltMap() {
             try {
-                feltMap = await felt.map({
+                // Wait for the Felt SDK to load
+                if (typeof window.Felt === 'undefined') {
+                    console.error('Felt SDK not loaded');
+                    return;
+                }
+
+                feltMap = await window.Felt.map({
                     element: document.getElementById('felt-map'),
-                    // Replace with your Felt map URL that includes Cleveland boundary
                     url: 'https://felt.com/embed/CLevel-drLnBHYxSb2YTaF1SJEkJB',
                 });
 
@@ -195,11 +200,6 @@
                     zoom: 12
                 });
 
-                // Load land bank parcels
-                await loadLandBankParcels();
-
-                // Set up map event listeners
-                feltMap.on('click', handleMapClick);
             } catch (error) {
                 console.error('Error initializing Felt map:', error);
             }
