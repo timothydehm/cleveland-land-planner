@@ -194,7 +194,7 @@
                 iframe.style.width = '100%';
                 iframe.style.height = '100%';
                 iframe.style.border = 'none';
-                iframe.src = 'https://felt.com/embed/map/CLevel-drLnBHYxSb2YTaF1SJEkJB';
+                iframe.src = 'https://felt.com/embed/map/CLevel-drLnBHYxSb2YTaF1SJEkJB?hideControls=1&hideSidebar=1&hideHeader=1';
                 mapElement.appendChild(iframe);
 
                 // Listen for messages from the Felt map
@@ -203,20 +203,23 @@
                     if (event.origin !== 'https://felt.com') return;
                     
                     // Handle the selected feature data
-                    if (event.data.type === 'feature_selected') {
-                        const feature = event.data.feature;
-                        if (feature && feature.properties) {
-                            const parcel = {
-                                id: feature.properties.parcelpin,
-                                address: feature.properties.par_addr_all,
-                                properties: {
-                                    ward: feature.properties.ward || 'N/A',
-                                    sqft: feature.properties.total_square_ft || 'N/A',
-                                    zoning: feature.properties.zoning || 'N/A'
-                                }
-                            };
-                            selectParcel(parcel);
-                        }
+                    const data = event.data;
+                    if (data && data.properties) {
+                        const parcel = {
+                            id: data.properties.parcelpin,
+                            address: data.properties.par_addr_all,
+                            properties: {
+                                ward: data.properties.ward || 'N/A',
+                                sqft: data.properties.total_square_ft || 'N/A',
+                                zoning: data.properties.zoning || 'N/A'
+                            }
+                        };
+                        selectParcel(parcel);
+                        
+                        // Send message back to hide the popup
+                        iframe.contentWindow.postMessage({
+                            type: 'hide_popup'
+                        }, 'https://felt.com');
                     }
                 });
 
@@ -328,7 +331,7 @@
             });
         }
 
-        function selectCategory(index) {
+        async function selectCategory(index) {
             selectedCategory = index;
             
             // Update UI
@@ -337,7 +340,13 @@
                 item.classList.toggle('selected', i === index);
             });
             
-            document.getElementById('assign-use-btn').disabled = !selectedParcel;
+            const assignButton = document.getElementById('assign-use-btn');
+            assignButton.disabled = !selectedParcel;
+            
+            // If we have both a selected parcel and category, enable the assign button
+            if (selectedParcel && selectedCategory !== null) {
+                assignButton.disabled = false;
+            }
         }
 
         // Initialize everything
