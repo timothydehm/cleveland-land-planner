@@ -6,8 +6,12 @@
     <title>Cleveland Land Bank Planner</title>
     
     <!-- Leaflet CSS and JS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" 
+          crossorigin="anonymous"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" 
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" 
+            crossorigin="anonymous"></script>
 
     <style>
         body {
@@ -193,7 +197,7 @@
 
         function initMap() {
             // Initialize map centered on Cleveland
-            map = L.map('map').setView([41.4993, -81.6944], 12);
+            map = L.map('map').setView([41.49, -81.68], 13);
 
             // Add OpenStreetMap tile layer
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -205,45 +209,23 @@
 
         async function loadLandBankParcels() {
             try {
-                const apiUrl = 'https://services3.arcgis.com/dty2kHktVXHrqO8i/arcgis/rest/services/City_Landbank/FeatureServer/0/query';
-                const params = new URLSearchParams({
-                    where: '1=1',
-                    outFields: '*',
-                    geometryType: 'esriGeometryPolygon',
-                    spatialRel: 'esriSpatialRelIntersects',
-                    outSR: '4326',
-                    f: 'json',
-                    returnGeometry: true,
-                    maxRecordCount: 5000  // Request more records
-                });
-
-                const response = await fetch(`${apiUrl}?${params}`);
+                const response = await fetch('City_Landbank_2552617068183058004.geojson');
                 const data = await response.json();
                 
                 // Process each parcel
                 data.features.forEach(feature => {
                     const parcel = {
-                        id: feature.attributes.PARCELPIN,
-                        address: feature.attributes.SITEADDRES || 'No address available',
+                        id: feature.properties.PARCELPIN,
+                        address: feature.properties.SITEADDRES || 'No address available',
                         properties: {
-                            ward: feature.attributes.WARD || 'N/A',
-                            sqft: feature.attributes.SITEAREA || 'N/A',
-                            zoning: feature.attributes.ZONING || 'N/A'
+                            ward: feature.properties.WARD || 'N/A',
+                            sqft: feature.properties.SITEAREA || 'N/A',
+                            zoning: feature.properties.ZONING || 'N/A'
                         }
                     };
 
-                    // Convert ESRI polygon to GeoJSON
-                    const geojson = {
-                        type: 'Feature',
-                        geometry: {
-                            type: 'Polygon',
-                            coordinates: feature.geometry.rings
-                        },
-                        properties: feature.attributes
-                    };
-
                     // Create Leaflet layer
-                    const layer = L.geoJSON(geojson, {
+                    const layer = L.geoJSON(feature, {
                         style: {
                             color: '#000',
                             weight: 1,
