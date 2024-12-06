@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cleveland Land Bank Planner</title>
+    
+    <!-- Leaflet CSS and JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
     <style>
         body {
             font-family: system-ui, -apple-system, sans-serif;
@@ -19,16 +24,13 @@
             max-width: 1400px;
             width: 100%;
         }
-        .sidebar {
-            width: 300px;
-            flex-shrink: 0;
-        }
         .card {
             background: white;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             margin-bottom: 20px;
             width: 300px;
+            flex-shrink: 0;
         }
         .map-container {
             position: relative;
@@ -39,7 +41,7 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             overflow: hidden;
         }
-        #felt-map {
+        #map {
             width: 100%;
             height: 100%;
         }
@@ -169,7 +171,7 @@
             </div>
         </div>
         <div class="map-container">
-            <div id="felt-map"></div>
+            <div id="map"></div>
         </div>
     </div>
 
@@ -182,52 +184,23 @@
             { name: 'Public Space', color: '#fde68a' }
         ];
 
+        let map;
         let selectedParcel = null;
         let selectedCategory = null;
         let parcels = new Map();
+        let parcelLayers = new Map();
         let parcelStyles = new Map();
 
-        async function initFeltMap() {
-            try {
-                const mapElement = document.getElementById('felt-map');
-                const iframe = document.createElement('iframe');
-                iframe.style.width = '100%';
-                iframe.style.height = '100%';
-                iframe.style.border = 'none';
-                iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups');
-                iframe.src = 'https://felt.com/embed/map/CLevel-drLnBHYxSb2YTaF1SJEkJB?hideControls=1&hideSidebar=1&hideHeader=1';
-                mapElement.appendChild(iframe);
+        function initMap() {
+            // Initialize map centered on Cleveland
+            map = L.map('map').setView([41.4993, -81.6944], 12);
 
-                // Set up message handling
-                window.addEventListener('message', (event) => {
-                    if (event.origin !== 'https://felt.com') return;
-                    
-                    try {
-                        const data = JSON.parse(event.data);
-                        if (data.type === 'FEATURE_CLICK') {
-                            const properties = data.feature?.properties;
-                            if (properties) {
-                                const parcel = {
-                                    id: properties.parcelpin,
-                                    address: properties.par_addr_all || 'No address available',
-                                    properties: {
-                                        ward: properties.ward || 'N/A',
-                                        sqft: properties.total_square_ft || 'N/A',
-                                        zoning: properties.zoning || 'N/A'
-                                    }
-                                };
-                                selectParcel(parcel);
-                            }
-                        }
-                    } catch (e) {
-                        console.error('Error processing message:', e);
-                    }
-                });
+            // Add OpenStreetMap tile layer
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
 
-                await loadLandBankParcels();
-            } catch (error) {
-                console.error('Error initializing map:', error);
-            }
+            loadLandBankParcels();
         }
 
         async function loadLandBankParcels() {
@@ -245,7 +218,8 @@
                 const response = await fetch(`${apiUrl}?${params}`);
                 const data = await response.json();
                 
-                for (const feature of data.features) {
+                // Process each parcel
+                data.features.forEach(feature => {
                     const parcel = {
                         id: feature.attributes.PARCELPIN,
                         address: feature.attributes.par_addr_all || 'No address available',
@@ -255,8 +229,35 @@
                             zoning: feature.attributes.zoning || 'N/A'
                         }
                     };
+
+                    // Convert ESRI polygon to GeoJSON
+                    const geojson = {
+                        type: 'Feature',
+                        geometry: {
+                            type: 'Polygon',
+                            coordinates: feature.geometry.rings
+                        },
+                        properties: feature.attributes
+                    };
+
+                    // Create Leaflet layer
+                    const layer = L.geoJSON(geojson, {
+                        style: {
+                            color: '#000',
+                            weight: 1,
+                            opacity: 1,
+                            fillOpacity: 0.3,
+                            fillColor: '#fff'
+                        }
+                    }).addTo(map);
+
+                    // Add click handler
+                    layer.on('click', () => selectParcel(parcel));
+
+                    // Store references
                     parcels.set(parcel.id, parcel);
-                }
+                    parcelLayers.set(parcel.id, layer);
+                });
 
                 console.log('Loaded parcels:', parcels.size);
                 loadStyles();
@@ -266,7 +267,22 @@
         }
 
         function selectParcel(parcel) {
+            // Reset previous selection
+            if (selectedParcel) {
+                const prevLayer = parcelLayers.get(selectedParcel.id);
+                if (prevLayer) {
+                    prevLayer.setStyle({ weight: 1 });
+                }
+            }
+
             selectedParcel = parcel;
+            
+            // Highlight selected parcel
+            const layer = parcelLayers.get(parcel.id);
+            if (layer) {
+                layer.setStyle({ weight: 3 });
+                layer.bringToFront();
+            }
             
             // Update UI
             document.getElementById('parcel-id').textContent = parcel.id;
@@ -280,7 +296,6 @@
             const currentUse = style ? categories[style.categoryIndex].name : 'Unassigned';
             document.getElementById('parcel-use').textContent = currentUse;
             
-            // Enable/disable assign button based on category selection
             document.getElementById('assign-use-btn').disabled = !selectedCategory;
         }
 
@@ -319,8 +334,17 @@
             document.getElementById('assign-use-btn').disabled = !selectedParcel;
         }
 
-        async function applyStyle(parcelId, categoryIndex) {
-            // Store the style locally
+        function applyStyle(parcelId, categoryIndex) {
+            const layer = parcelLayers.get(parcelId);
+            if (!layer) return;
+
+            // Apply style to the layer
+            layer.setStyle({
+                fillColor: categories[categoryIndex].color,
+                fillOpacity: 0.6
+            });
+
+            // Store the style
             parcelStyles.set(parcelId, {
                 categoryIndex: categoryIndex
             });
@@ -330,8 +354,7 @@
 
             // Update the UI
             if (selectedParcel && selectedParcel.id === parcelId) {
-                selectedParcel.currentUse = categories[categoryIndex].name;
-                document.getElementById('parcel-use').textContent = selectedParcel.currentUse;
+                document.getElementById('parcel-use').textContent = categories[categoryIndex].name;
             }
         }
 
@@ -347,7 +370,9 @@
             const saved = localStorage.getItem('parcelStyles');
             if (saved) {
                 const styles = JSON.parse(saved);
-                parcelStyles = new Map(Object.entries(styles));
+                Object.entries(styles).forEach(([parcelId, style]) => {
+                    applyStyle(parcelId, style.categoryIndex);
+                });
             }
         }
 
@@ -359,7 +384,7 @@
         };
 
         // Initialize everything
-        initFeltMap();
+        initMap();
         initLegend();
     </script>
 </body>
