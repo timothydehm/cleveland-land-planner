@@ -254,14 +254,38 @@
                 iframe.style.width = '100%';
                 iframe.style.height = '100%';
                 iframe.style.border = 'none';
+                // Add allow-scripts and allow-same-origin to the sandbox attribute
+                iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-popups');
                 iframe.src = 'https://felt.com/embed/map/CLevel-drLnBHYxSb2YTaF1SJEkJB?hideControls=1&hideSidebar=1&hideHeader=1';
                 mapElement.appendChild(iframe);
 
-                window.addEventListener('message', handleMapMessage);
-                await loadLandBankParcels();
+                // Set up message handling
+                window.addEventListener('message', (event) => {
+                    if (event.origin !== 'https://felt.com') return;
+                    
+                    try {
+                        const data = JSON.parse(event.data);
+                        if (data.type === 'FEATURE_CLICK') {
+                            const properties = data.feature?.properties;
+                            if (properties) {
+                                const parcel = {
+                                    id: properties.parcelpin,
+                                    address: properties.par_addr_all || 'No address available',
+                                    properties: {
+                                        ward: properties.ward || 'N/A',
+                                        sqft: properties.total_square_ft || 'N/A',
+                                        zoning: properties.zoning || 'N/A'
+                                    }
+                                };
+                                selectParcel(parcel);
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Error processing message:', e);
+                    }
+                });
 
-                const resizeObserver = new ResizeObserver(updateOverlay);
-                resizeObserver.observe(document.getElementById('overlay'));
+                await loadLandBankParcels();
             } catch (error) {
                 console.error('Error initializing map:', error);
             }
@@ -386,17 +410,29 @@
         }
 
         // Set up the assign button
+        async function applyStyle(parcelId, categoryIndex) {
+            const iframe = document.querySelector('#felt-map iframe');
+            if (!iframe) return;
+
+            // Store the style locally
+            parcelStyles.set(parcelId, {
+                categoryIndex: categoryIndex
+            });
+
+            // Save to localStorage
+            saveStyles();
+
+            // Update the UI
+            if (selectedParcel && selectedParcel.id === parcelId) {
+                selectedParcel.currentUse = categories[categoryIndex].name;
+                document.getElementById('parcel-use').textContent = selectedParcel.currentUse;
+            }
+        }
+
+        // Modify the assign button click handler
         document.getElementById('assign-use-btn').onclick = () => {
             if (selectedParcel && selectedCategory !== null) {
-                parcelStyles.set(selectedParcel.id, {
-                    categoryIndex: selectedCategory
-                });
-                
-                selectedParcel.currentUse = categories[selectedCategory].name;
-                selectParcel(selectedParcel);
-                
-                updateOverlay();
-                saveStyles();
+                applyStyle(selectedParcel.id, selectedCategory);
             }
         };
 
