@@ -4,8 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cleveland Land Bank Planner</title>
-    
-    <!-- Leaflet CSS and JS -->
+
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
@@ -151,7 +150,7 @@
 
             // Create a layer group for parcels
             parcelGroup = L.featureGroup().addTo(map);
-            
+
             loadLandBankParcels();
         }
 
@@ -159,17 +158,17 @@
             try {
                 const response = await fetch('City_Landbank_2552617068183058004.geojson');
                 const data = await response.json();
-                
+
                 data.features.forEach(feature => {
                     const parcelId = feature.properties.PARCELPIN;
-                    
+
                     // Convert feature to proper GeoJSON
                     const geoJsonFeature = {
                         type: 'Feature',
                         properties: feature.properties,
                         geometry: feature.geometry
                     };
-                    
+
                     // Create a single layer for this parcel
                     const layer = L.geoJSON(geoJsonFeature, {
                         interactive: true, // Make sure it's clickable
@@ -181,7 +180,7 @@
                             fillColor: uses[0].color
                         }
                     });
-                    
+
                     // Add click handler directly to the layer
                     layer.on({
                         click: function(e) {
@@ -202,7 +201,7 @@
                             });
                         }
                     });
-                    
+
                     // Store reference and add to map
                     parcelLayers.set(parcelId, layer);
                     parcelUses.set(parcelId, 0);
@@ -217,36 +216,9 @@
             }
         }
 
-        function cycleUse(parcelId, layer) {
-            if (!layer) {
-                console.error('Layer not found for parcel:', parcelId);
-                return;
-            }
-
-            // Get current use index and cycle to next
-            let currentIndex = parcelUses.get(parcelId) || 0;
-            currentIndex = (currentIndex + 1) % uses.length;
-            
-            console.log('Cycling use:', {
-                parcelId,
-                oldIndex: parcelUses.get(parcelId),
-                newIndex: currentIndex,
-                newColor: uses[currentIndex].color
-            });
-            
-            // Update use and style
-            parcelUses.set(parcelId, currentIndex);
-            layer.setStyle({
-                fillColor: uses[currentIndex].color,
-                fillOpacity: 0.6
-            });
-
-            saveUses();
-        }
-
         function cycleUse(parcelId) {
             console.log('Cycling use for parcel:', parcelId);
-            
+
             const layer = parcelLayers.get(parcelId);
             if (!layer) {
                 console.error('Layer not found for parcel:', parcelId);
@@ -256,17 +228,20 @@
             // Get current use index and cycle to next
             let currentIndex = parcelUses.get(parcelId) || 0;
             currentIndex = (currentIndex + 1) % uses.length;
-            
+
             console.log('New use index:', currentIndex, 'Color:', uses[currentIndex].color);
-            
+
             // Update use
             parcelUses.set(parcelId, currentIndex);
-            
+
             // Update style
             layer.setStyle({
                 fillColor: uses[currentIndex].color,
                 fillOpacity: 0.6
             });
+
+            // Force Leaflet to redraw the layer
+            layer.redraw(); 
 
             // Save to localStorage
             saveUses();
