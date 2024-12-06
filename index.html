@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cleveland Land Bank Planner</title>
-    <script src="https://cdn.feltmaps.com/js-sdk/cdn/js-sdk.js"></script>
     <style>
         body {
             font-family: system-ui, -apple-system, sans-serif;
@@ -55,11 +54,6 @@
         .content {
             padding: 24px;
         }
-        .grid {
-            display: grid;
-            gap: 12px;
-            margin-bottom: 32px;
-        }
         .legend {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -69,47 +63,51 @@
             display: flex;
             align-items: center;
             gap: 12px;
+            padding: 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .legend-item:hover {
+            background-color: #f3f4f6;
+        }
+        .legend-item.selected {
+            background-color: #e5e7eb;
         }
         .legend-color {
-            width: 32px;
-            height: 32px;
-            border: 1px solid #e5e5e5;
+            width: 24px;
+            height: 24px;
             border-radius: 4px;
-        }
-        .legend-color.at-limit {
-            border: 2px solid #22c55e;
-            background-color: #f0fdf4;
-        }
-        .legend-color.over-limit {
-            border: 2px solid #ef4444;
-            background-color: #fef2f2;
+            border: 1px solid #e5e5e5;
         }
         .legend-text {
-            display: flex;
-            flex-direction: column;
+            flex-grow: 1;
         }
         .legend-name {
             font-size: 0.875rem;
             color: #374151;
+            font-weight: 500;
         }
-        .legend-count {
-            font-size: 0.75rem;
+        .parcel-info {
+            padding: 20px;
+        }
+        .parcel-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.875rem;
+        }
+        .info-label {
             color: #6b7280;
         }
-        .reset-btn {
-            background: none;
-            border: none;
-            padding: 8px;
-            cursor: pointer;
-            border-radius: 50%;
-        }
-        .reset-btn:hover {
-            background-color: #f3f4f6;
-        }
-        .controls {
-            margin-top: 20px;
-            padding: 20px;
-            border-top: 1px solid #e5e5e5;
+        .info-value {
+            color: #374151;
+            font-weight: 500;
         }
         .btn {
             background-color: #3b82f6;
@@ -119,10 +117,16 @@
             border-radius: 6px;
             cursor: pointer;
             font-size: 0.875rem;
-            margin-right: 8px;
+            width: 100%;
+            margin-top: 12px;
         }
         .btn:hover {
             background-color: #2563eb;
+        }
+        .btn:disabled {
+            background-color: #e5e7eb;
+            color: #9ca3af;
+            cursor: not-allowed;
         }
     </style>
 </head>
@@ -131,7 +135,6 @@
         <div class="card">
             <div class="header">
                 <h1 class="title">Land Use Planner</h1>
-                <button class="reset-btn" onclick="resetGrid()" title="Reset map">↺</button>
             </div>
             <div class="content">
                 <div class="legend" id="legend"></div>
@@ -179,46 +182,23 @@
             { name: 'Public Space', color: '#fde68a' }
         ];
 
-        let feltMap;
         let selectedCategory = null;
         let selectedParcel = null;
         let parcels = new Map();
 
         async function initFeltMap() {
             try {
-                // Wait for the SDK to load
-                if (typeof FeltMaps === 'undefined') {
-                    console.error('Felt SDK not loaded');
-                    return;
-                }
+                // Initialize the map using the Felt embed
+                const mapElement = document.getElementById('felt-map');
+                const iframe = document.createElement('iframe');
+                iframe.style.width = '100%';
+                iframe.style.height = '100%';
+                iframe.style.border = 'none';
+                iframe.src = 'https://felt.com/embed/map/CLevel-drLnBHYxSb2YTaF1SJEkJB';
+                mapElement.appendChild(iframe);
 
-                // Initialize the controller
-                feltMap = await FeltMaps.createController({
-                    elementId: 'felt-map',
-                    mapId: 'CLevel-drLnBHYxSb2YTaF1SJEkJB',
-                    options: {
-                        uiControls: {
-                            cooperativeGestures: false,
-                            fullScreenButton: false,
-                            showLegend: false,
-                        }
-                    }
-                });
-
-                // Center map on Cleveland
-                await feltMap.setView({
-                    center: [-81.6944, 41.4993],
-                    zoom: 12
-                });
-
-                // Load land bank parcels after map initialization
+                // Load land bank parcels after map loads
                 await loadLandBankParcels();
-
-                // Set up map event listeners
-                feltMap.onPointerClick({
-                    handler: handleMapClick
-                });
-
             } catch (error) {
                 console.error('Error initializing Felt map:', error);
             }
@@ -240,7 +220,7 @@
                 const response = await fetch(`${apiUrl}?${params}`);
                 const data = await response.json();
                 
-                // Process and add parcels to the map
+                // Process parcels
                 for (const feature of data.features) {
                     const parcel = {
                         id: feature.attributes.PARCELPIN,
@@ -261,21 +241,10 @@
                     
                     parcels.set(parcel.id, parcel);
                 }
+
+                console.log('Loaded parcels:', parcels.size);
             } catch (error) {
                 console.error('Error loading land bank parcels:', error);
-            }
-        }
-
-        function handleMapClick(e) {
-            const feature = e.features?.[0];
-            if (!feature) {
-                deselectParcel();
-                return;
-            }
-
-            const parcel = parcels.get(feature.properties.id);
-            if (parcel) {
-                selectParcel(parcel);
             }
         }
 
@@ -339,17 +308,6 @@
             });
             
             document.getElementById('assign-use-btn').disabled = !selectedParcel;
-        }
-
-        function resetGrid() {
-            parcels.forEach(parcel => {
-                parcel.currentUse = null;
-            });
-            deselectParcel();
-            selectedCategory = null;
-            document.querySelectorAll('.legend-item').forEach(item => {
-                item.classList.remove('selected');
-            });
         }
 
         // Initialize everything
