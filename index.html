@@ -138,13 +138,20 @@
 
         function initMap() {
             // Initialize map centered on Cleveland
-            map = L.map('map').setView([41.49, -81.68], 13);
+            map = L.map('map', {
+                zoomControl: true,
+                minZoom: 10,
+                maxZoom: 19
+            }).setView([41.49, -81.68], 13);
 
             // Add OpenStreetMap tile layer
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '© OpenStreetMap contributors'
             }).addTo(map);
 
+            // Create a layer group for parcels
+            parcelGroup = L.featureGroup().addTo(map);
+            
             loadLandBankParcels();
         }
 
@@ -154,6 +161,9 @@
                 const data = await response.json();
                 
                 data.features.forEach(feature => {
+                    // Debug log
+                    console.log('Loading parcel:', feature.properties.PARCELPIN);
+                    
                     // Create Leaflet layer with click event
                     const layer = L.geoJSON(feature, {
                         style: {
@@ -165,14 +175,25 @@
                         },
                         onEachFeature: (feature, layer) => {
                             const parcelId = feature.properties.PARCELPIN;
+                            
+                            // Debug log
+                            console.log('Setting up click handler for parcel:', parcelId);
+                            
+                            layer.on('click', (e) => {
+                                // Debug log
+                                console.log('Parcel clicked:', parcelId);
+                                L.DomEvent.stopPropagation(e);
+                                cycleUse(parcelId);
+                            });
+                            
                             parcelLayers.set(parcelId, layer);
                             parcelUses.set(parcelId, 0); // Start at index 0 (unassigned)
-
-                            layer.on('click', () => cycleUse(parcelId));
                         }
                     }).addTo(map);
                 });
 
+                console.log('Total parcels loaded:', parcelLayers.size);
+                
                 // Load saved uses from localStorage
                 loadSavedUses();
 
@@ -182,12 +203,19 @@
         }
 
         function cycleUse(parcelId) {
+            console.log('Cycling use for parcel:', parcelId);
+            
             const layer = parcelLayers.get(parcelId);
-            if (!layer) return;
+            if (!layer) {
+                console.error('Layer not found for parcel:', parcelId);
+                return;
+            }
 
             // Get current use index and cycle to next
             let currentIndex = parcelUses.get(parcelId) || 0;
             currentIndex = (currentIndex + 1) % uses.length;
+            
+            console.log('New use index:', currentIndex, 'Color:', uses[currentIndex].color);
             
             // Update use
             parcelUses.set(parcelId, currentIndex);
