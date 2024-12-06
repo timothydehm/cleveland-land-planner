@@ -6,12 +6,8 @@
     <title>Cleveland Land Bank Planner</title>
     
     <!-- Leaflet CSS and JS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
-          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" 
-          crossorigin="anonymous"/>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" 
-            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" 
-            crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <style>
         body {
@@ -71,14 +67,6 @@
             gap: 12px;
             padding: 8px;
             border-radius: 6px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        .legend-item:hover {
-            background-color: #f3f4f6;
-        }
-        .legend-item.selected {
-            background-color: #e5e7eb;
         }
         .legend-color {
             width: 24px;
@@ -86,53 +74,16 @@
             border-radius: 4px;
             border: 1px solid #e5e5e5;
         }
-        .legend-text {
-            flex-grow: 1;
-        }
         .legend-name {
             font-size: 0.875rem;
             color: #374151;
             font-weight: 500;
-        }
-        .parcel-info {
-            padding: 20px;
-        }
-        .parcel-title {
-            font-size: 1rem;
-            font-weight: 600;
-            margin-bottom: 12px;
         }
         .info-row {
             display: flex;
             justify-content: space-between;
             margin-bottom: 8px;
             font-size: 0.875rem;
-        }
-        .info-label {
-            color: #6b7280;
-        }
-        .info-value {
-            color: #374151;
-            font-weight: 500;
-        }
-        .btn {
-            background-color: #3b82f6;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.875rem;
-            width: 100%;
-            margin-top: 12px;
-        }
-        .btn:hover {
-            background-color: #2563eb;
-        }
-        .btn:disabled {
-            background-color: #e5e7eb;
-            color: #9ca3af;
-            cursor: not-allowed;
         }
     </style>
 </head>
@@ -143,35 +94,28 @@
                 <h1 class="title">Land Use Planner</h1>
             </div>
             <div class="content">
-                <div class="legend" id="legend"></div>
-            </div>
-            <div class="parcel-info">
-                <div class="parcel-title">Select a parcel</div>
-                <div class="info-row">
-                    <span class="info-label">Parcel ID:</span>
-                    <span class="info-value" id="parcel-id">-</span>
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #ff0000"></div>
+                        <div class="legend-name">Residential</div>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #00ff00"></div>
+                        <div class="legend-name">Green Space</div>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #0000ff"></div>
+                        <div class="legend-name">Commercial</div>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #800080"></div>
+                        <div class="legend-name">Other</div>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #cccccc"></div>
+                        <div class="legend-name">Unassigned</div>
+                    </div>
                 </div>
-                <div class="info-row">
-                    <span class="info-label">Address:</span>
-                    <span class="info-value" id="parcel-address">-</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Ward:</span>
-                    <span class="info-value" id="parcel-ward">-</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Site Area:</span>
-                    <span class="info-value" id="parcel-area">-</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Zoning:</span>
-                    <span class="info-value" id="parcel-zoning">-</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Planned Use:</span>
-                    <span class="info-value" id="parcel-use">-</span>
-                </div>
-                <button class="btn" id="assign-use-btn" disabled>Assign Selected Use</button>
             </div>
         </div>
         <div class="map-container">
@@ -180,20 +124,17 @@
     </div>
 
     <script>
-        const categories = [
-            { name: 'Residential - Single Family', color: '#e5e7eb' },
-            { name: 'Residential - Multi-Family', color: '#fecaca' },
-            { name: 'Commercial', color: '#bfdbfe' },
-            { name: 'Community Garden', color: '#bbf7d0' },
-            { name: 'Public Space', color: '#fde68a' }
+        const uses = [
+            { name: 'Unassigned', color: '#cccccc' },
+            { name: 'Residential', color: '#ff0000' },
+            { name: 'Green Space', color: '#00ff00' },
+            { name: 'Commercial', color: '#0000ff' },
+            { name: 'Other', color: '#800080' }
         ];
 
         let map;
-        let selectedParcel = null;
-        let selectedCategory = null;
-        let parcels = new Map();
         let parcelLayers = new Map();
-        let parcelStyles = new Map();
+        let parcelUses = new Map();
 
         function initMap() {
             // Initialize map centered on Cleveland
@@ -212,200 +153,79 @@
                 const response = await fetch('City_Landbank_2552617068183058004.geojson');
                 const data = await response.json();
                 
-                                    // Process each parcel
                 data.features.forEach(feature => {
-                    const parcel = {
-                        id: feature.properties.PARCELPIN,
-                        address: feature.properties.SITEADDRES || 'No address available',
-                        properties: {
-                            ward: feature.properties.WARD || 'N/A',
-                            sqft: feature.properties.SITEAREA || 'N/A',
-                            zoning: feature.properties.ZONING || 'N/A'
-                        }
-                    };
-
                     // Create Leaflet layer with click event
                     const layer = L.geoJSON(feature, {
                         style: {
                             color: '#000',
                             weight: 1,
                             opacity: 1,
-                            fillOpacity: 0.3,
-                            fillColor: '#fff'
+                            fillOpacity: 0.6,
+                            fillColor: uses[0].color // Start with unassigned
                         },
                         onEachFeature: (feature, layer) => {
-                            layer.on('click', () => {
-                                console.log('Parcel clicked:', parcel);
-                                // Highlight the clicked parcel
-                                layer.setStyle({
-                                    weight: 3,
-                                    color: '#000',
-                                    fillOpacity: 0.5
-                                });
-                                selectParcel(parcel, layer);
-                            });
+                            const parcelId = feature.properties.PARCELPIN;
+                            parcelLayers.set(parcelId, layer);
+                            parcelUses.set(parcelId, 0); // Start at index 0 (unassigned)
+
+                            layer.on('click', () => cycleUse(parcelId));
                         }
                     }).addTo(map);
-
-                    // Add click handler
-                    layer.on('click', () => selectParcel(parcel));
-
-                    // Store references
-                    parcels.set(parcel.id, parcel);
-                    parcelLayers.set(parcel.id, layer);
                 });
 
-                console.log('Loaded parcels:', parcels.size);
-                loadStyles();
+                // Load saved uses from localStorage
+                loadSavedUses();
+
             } catch (error) {
                 console.error('Error loading land bank parcels:', error);
             }
         }
 
-        function selectParcel(parcel) {
-            // Reset previous selection
-            if (selectedParcel) {
-                const prevLayer = parcelLayers.get(selectedParcel.id);
-                if (prevLayer) {
-                    prevLayer.setStyle({ weight: 1 });
-                }
-            }
-
-            selectedParcel = parcel;
-            
-            // Highlight selected parcel
-            const layer = parcelLayers.get(parcel.id);
-            if (layer) {
-                layer.setStyle({ weight: 3 });
-                layer.bringToFront();
-            }
-            
-            // Update UI
-            document.getElementById('parcel-id').textContent = parcel.id;
-            document.getElementById('parcel-address').textContent = parcel.address;
-            document.getElementById('parcel-ward').textContent = parcel.properties.ward;
-            document.getElementById('parcel-area').textContent = `${parcel.properties.sqft} sq ft`;
-            document.getElementById('parcel-zoning').textContent = parcel.properties.zoning;
-            
-            // Get existing style if any
-            const style = parcelStyles.get(parcel.id);
-            const currentUse = style ? categories[style.categoryIndex].name : 'Unassigned';
-            document.getElementById('parcel-use').textContent = currentUse;
-            
-            document.getElementById('assign-use-btn').disabled = !selectedCategory;
-        }
-
-        function initLegend() {
-            const legendElement = document.getElementById('legend');
-            
-            categories.forEach((category, index) => {
-                const item = document.createElement('div');
-                item.className = 'legend-item';
-                item.onclick = () => selectCategory(index);
-                
-                const color = document.createElement('div');
-                color.className = 'legend-color';
-                color.style.backgroundColor = category.color;
-                
-                const text = document.createElement('div');
-                text.className = 'legend-text';
-                text.innerHTML = `
-                    <div class="legend-name">${category.name}</div>
-                `;
-                
-                item.appendChild(color);
-                item.appendChild(text);
-                legendElement.appendChild(item);
-            });
-        }
-
-        function selectCategory(index) {
-            selectedCategory = index;
-            
-            const items = document.querySelectorAll('.legend-item');
-            items.forEach((item, i) => {
-                item.classList.toggle('selected', i === index);
-            });
-            
-            document.getElementById('assign-use-btn').disabled = !selectedParcel;
-        }
-
-        function applyStyle(parcelId, categoryIndex) {
+        function cycleUse(parcelId) {
             const layer = parcelLayers.get(parcelId);
             if (!layer) return;
 
-            // Apply style to the layer - need to access the actual layer within the LayerGroup
-            layer.eachLayer((l) => {
-                l.setStyle({
-                    fillColor: categories[categoryIndex].color,
-                    fillOpacity: 0.6,
-                    color: '#000',
-                    weight: 1
-                });
-            });
-
-            // Store the style
-            parcelStyles.set(parcelId, {
-                categoryIndex: categoryIndex
+            // Get current use index and cycle to next
+            let currentIndex = parcelUses.get(parcelId) || 0;
+            currentIndex = (currentIndex + 1) % uses.length;
+            
+            // Update use
+            parcelUses.set(parcelId, currentIndex);
+            
+            // Update style
+            layer.setStyle({
+                fillColor: uses[currentIndex].color,
+                fillOpacity: 0.6
             });
 
             // Save to localStorage
-            saveStyles();
-
-            // Update the UI
-            if (selectedParcel && selectedParcel.id === parcelId) {
-                document.getElementById('parcel-use').textContent = categories[categoryIndex].name;
-            }
+            saveUses();
         }
 
-        function saveStyles() {
-            const styles = {};
-            parcelStyles.forEach((style, parcelId) => {
-                styles[parcelId] = style;
-            });
-            localStorage.setItem('parcelStyles', JSON.stringify(styles));
+        function saveUses() {
+            const uses = Object.fromEntries(parcelUses);
+            localStorage.setItem('parcelUses', JSON.stringify(uses));
         }
 
-        function loadStyles() {
-            const saved = localStorage.getItem('parcelStyles');
+        function loadSavedUses() {
+            const saved = localStorage.getItem('parcelUses');
             if (saved) {
-                const styles = JSON.parse(saved);
-                Object.entries(styles).forEach(([parcelId, style]) => {
-                    applyStyle(parcelId, style.categoryIndex);
+                const savedUses = JSON.parse(saved);
+                Object.entries(savedUses).forEach(([parcelId, useIndex]) => {
+                    parcelUses.set(parcelId, useIndex);
+                    const layer = parcelLayers.get(parcelId);
+                    if (layer) {
+                        layer.setStyle({
+                            fillColor: uses[useIndex].color,
+                            fillOpacity: 0.6
+                        });
+                    }
                 });
             }
         }
 
-        // Set up the assign button
-        document.getElementById('assign-use-btn').onclick = () => {
-            if (selectedParcel && selectedCategory !== null) {
-                const layer = parcelLayers.get(selectedParcel.id);
-                if (layer) {
-                    // Apply the new style
-                    layer.setStyle({
-                        fillColor: categories[selectedCategory].color,
-                        fillOpacity: 0.6,
-                        color: '#000',
-                        weight: 3
-                    });
-
-                    // Store the style
-                    parcelStyles.set(selectedParcel.id, {
-                        categoryIndex: selectedCategory
-                    });
-
-                    // Update UI
-                    document.getElementById('parcel-use').textContent = categories[selectedCategory].name;
-
-                    // Save to localStorage
-                    saveStyles();
-                }
-            }
-        };
-
         // Initialize everything
         initMap();
-        initLegend();
     </script>
 </body>
 </html>
