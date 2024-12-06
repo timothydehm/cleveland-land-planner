@@ -212,7 +212,7 @@
                 const response = await fetch('City_Landbank_2552617068183058004.geojson');
                 const data = await response.json();
                 
-                // Process each parcel
+                                    // Process each parcel
                 data.features.forEach(feature => {
                     const parcel = {
                         id: feature.properties.PARCELPIN,
@@ -224,7 +224,7 @@
                         }
                     };
 
-                    // Create Leaflet layer
+                    // Create Leaflet layer with click event
                     const layer = L.geoJSON(feature, {
                         style: {
                             color: '#000',
@@ -232,6 +232,18 @@
                             opacity: 1,
                             fillOpacity: 0.3,
                             fillColor: '#fff'
+                        },
+                        onEachFeature: (feature, layer) => {
+                            layer.on('click', () => {
+                                console.log('Parcel clicked:', parcel);
+                                // Highlight the clicked parcel
+                                layer.setStyle({
+                                    weight: 3,
+                                    color: '#000',
+                                    fillOpacity: 0.5
+                                });
+                                selectParcel(parcel, layer);
+                            });
                         }
                     }).addTo(map);
 
@@ -367,7 +379,27 @@
         // Set up the assign button
         document.getElementById('assign-use-btn').onclick = () => {
             if (selectedParcel && selectedCategory !== null) {
-                applyStyle(selectedParcel.id, selectedCategory);
+                const layer = parcelLayers.get(selectedParcel.id);
+                if (layer) {
+                    // Apply the new style
+                    layer.setStyle({
+                        fillColor: categories[selectedCategory].color,
+                        fillOpacity: 0.6,
+                        color: '#000',
+                        weight: 3
+                    });
+
+                    // Store the style
+                    parcelStyles.set(selectedParcel.id, {
+                        categoryIndex: selectedCategory
+                    });
+
+                    // Update UI
+                    document.getElementById('parcel-use').textContent = categories[selectedCategory].name;
+
+                    // Save to localStorage
+                    saveStyles();
+                }
             }
         };
 
