@@ -55,6 +55,7 @@
       <div class="legend-color" style="background-color: #9E9E9E"></div> Other
     </div>
   </div>
+  <button id="downloadButton">Download GeoJSON</button> 
 
   <script>
     const map = L.map('map').setView([41.49, -81.68], 13); 
@@ -63,28 +64,36 @@
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
 
+    const landUses = ['Unassigned', 'Green Space', 'Residential', 'Commercial', 'Other']; 
     const colors = ['#ffffff', '#4CAF50', '#2196F3', '#FF9800', '#9E9E9E']; 
 
     fetch('City_Landbank_2552617068183058004.geojson')
       .then(response => response.json())
       .then(data => {
         L.geoJSON(data, {
-          style: {
-            color: '#ddd', 
-            weight: 1,
-            fillColor: '#ffffff',
-            fillOpacity: 1
+          style: function(feature) {
+            const landUseIndex = landUses.indexOf(feature.properties.landUse || 'Unassigned'); // Get index from landUse
+            return {
+              color: '#ddd',
+              weight: 1,
+              fillColor: colors[landUseIndex], 
+              fillOpacity: 1
+            };
           },
           onEachFeature: function (feature, layer) {
-            let colorIndex = 0; // Initialize color index for each parcel
-
             layer.on('click', function(e) {
-              colorIndex = (colorIndex + 1) % colors.length;
-              layer.setStyle({ fillColor: colors[colorIndex] });
+              const currentLandUseIndex = landUses.indexOf(feature.properties.landUse || 'Unassigned');
+              const newLandUseIndex = (currentLandUseIndex + 1) % landUses.length;
+              feature.properties.landUse = landUses[newLandUseIndex]; // Update landUse in GeoJSON
+              layer.setStyle({ fillColor: colors[newLandUseIndex] });
               L.DomEvent.stopPropagation(e); 
             });
           }
         }).addTo(map);
+
+        document.getElementById('downloadButton').addEventListener('click', function() {
+          // ... (download functionality - same as before) ...
+        });
       });
   </script>
 </body>
