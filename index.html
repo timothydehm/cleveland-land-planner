@@ -64,27 +64,22 @@
     }).addTo(map);
 
     const colors = ['#ffffff', '#4CAF50', '#2196F3', '#FF9800', '#9E9E9E']; 
-    const parcelColors = new Map(); 
 
     fetch('City_Landbank_2552617068183058004.geojson')
       .then(response => response.json())
       .then(data => {
         L.geoJSON(data, {
           style: {
-            color: '#ddd', // Thin grey stroke
+            color: '#ddd', 
             weight: 1,
-            fillColor: '#ffffff', // Default white fill
+            fillColor: '#ffffff',
             fillOpacity: 1
           },
           onEachFeature: function (feature, layer) {
-            const parcelId = feature.properties.PARCELPIN;
-            parcelColors.set(parcelId, 0); 
+            let colorIndex = 0; // Initialize color index for each parcel
 
             layer.on('click', function(e) {
-              let colorIndex = parcelColors.get(parcelId);
               colorIndex = (colorIndex + 1) % colors.length;
-              parcelColors.set(parcelId, colorIndex);
-
               layer.setStyle({ fillColor: colors[colorIndex] });
               L.DomEvent.stopPropagation(e); 
             });
