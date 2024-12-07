@@ -33,10 +33,6 @@
       margin-right: 5px;
       border: 1px solid #ccc;
     }
-    .selected-parcel { 
-      fill-opacity: 0.8 !important; 
-      fill-color: #aaa !important; 
-    }
   </style>
 </head>
 <body>
@@ -73,18 +69,16 @@
     const landUses = ['Unassigned', 'Green Space', 'Residential', 'Commercial', 'Other']; 
     const colors = ['#ffffff', '#4CAF50', '#2196F3', '#FF9800', '#9E9E9E']; 
 
-    let geojsonData = null; 
-    let selectedParcels = []; 
-    let isDragging = false; 
+    let geojsonData = null; // Store the GeoJSON data globally
 
     fetch('City_Landbank_2552617068183058004.geojson')
       .then(response => response.json())
       .then(data => {
-        geojsonData = data; 
-        loadGeoJSON(data); 
+        geojsonData = data; // Store the data
+        loadGeoJSON(data); // Load the initial data
       });
 
-    function loadGeoJSON(data) { 
+    function loadGeoJSON(data) { // Function to load GeoJSON data
       L.geoJSON(data, {
         style: function(feature) {
           const landUseIndex = landUses.indexOf(feature.properties.landUse || 'Unassigned');
@@ -96,79 +90,18 @@
           };
         },
         onEachFeature: function (feature, layer) {
-          layer.on({
-            click: function(e) {
-              if (e.originalEvent.ctrlKey || e.originalEvent.metaKey) {
-                if (selectedParcels.includes(layer)) {
-                  selectedParcels = selectedParcels.filter(p => p !== layer);
-                } else {
-                  selectedParcels.push(layer);
-                }
-              } else if (!isDragging) { 
-                selectedParcels = []; 
-                cycleLandUse(feature, layer); 
-              }
-
-              highlightSelectedParcels();
-              L.DomEvent.stopPropagation(e); 
-            },
-            mousedown: function(e) {
-              if (e.originalEvent.ctrlKey || e.originalEvent.metaKey) {
-                isDragging = true; 
-                map.dragging.disable(); 
-              }
-            },
-            mouseover: function(e) {
-              if (isDragging && (e.originalEvent.ctrlKey || e.originalEvent.metaKey)) {
-                selectedParcels.push(layer); 
-                highlightSelectedParcels();
-              }
-            }
+          layer.on('click', function(e) {
+            const currentLandUseIndex = landUses.indexOf(feature.properties.landUse || 'Unassigned');
+            const newLandUseIndex = (currentLandUseIndex + 1) % landUses.length;
+            feature.properties.landUse = landUses[newLandUseIndex];
+            layer.setStyle({ fillColor: colors[newLandUseIndex] });
+            L.DomEvent.stopPropagation(e); 
           });
         }
       }).addTo(map);
-
-      map.on({
-        click: function() {
-          selectedParcels = []; 
-          highlightSelectedParcels();
-        },
-        mouseup: function() {
-          if (isDragging) {
-            isDragging = false; 
-            map.dragging.enable(); 
-          }
-        }
-      });
     }
 
-    function cycleLandUse(feature, layer) {
-      const currentLandUseIndex = landUses.indexOf(feature.properties.landUse || 'Unassigned');
-      const newLandUseIndex = (currentLandUseIndex + 1) % landUses.length;
-      feature.properties.landUse = landUses[newLandUseIndex];
-
-      selectedParcels.forEach(parcel => {
-        if (parcel !== layer) { 
-          parcel.feature.properties.landUse = landUses[newLandUseIndex];
-          parcel.setStyle({ fillColor: colors[newLandUseIndex] });
-        }
-      });
-
-      layer.setStyle({ fillColor: colors[newLandUseIndex] });
-    }
-
-    function highlightSelectedParcels() {
-      map.eachLayer(layer => {
-        if (layer instanceof L.GeoJSON) {
-          if (selectedParcels.includes(layer)) {
-            layer.setStyle({ className: 'selected-parcel' }); 
-          } else {
-            layer.setStyle({ className: '' }); 
-          }
-        }
-      });
-    }
-
+    // --- Download button functionality ---
     document.getElementById('downloadButton').addEventListener('click', function() {
       if (geojsonData) {
         const geoJsonString = JSON.stringify(geojsonData); 
@@ -182,11 +115,12 @@
       }
     });
 
+    // --- Upload button functionality ---
     const uploadInput = document.getElementById('uploadInput');
     const uploadButton = document.getElementById('uploadButton');
 
     uploadButton.addEventListener('click', function() {
-      uploadInput.click(); 
+      uploadInput.click(); // Trigger the hidden file input
     });
 
     uploadInput.addEventListener('change', function(event) {
@@ -196,15 +130,16 @@
       reader.onload = function(event) {
         try {
           const uploadedData = JSON.parse(event.target.result);
-          geojsonData = uploadedData; 
-          map.eachLayer(layer => { 
+          geojsonData = uploadedData; // Update the global GeoJSON data
+          map.eachLayer(layer => { // Clear existing layers
             if (layer instanceof L.GeoJSON) {
               map.removeLayer(layer);
             }
           });
-          loadGeoJSON(uploadedData); 
+          loadGeoJSON(uploadedData); // Load the uploaded data
         } catch (error) {
           console.error('Error parsing GeoJSON:', error);
+          // Handle the error (e.g., display a message to the user)
         }
       };
 
