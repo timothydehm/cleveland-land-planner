@@ -12,49 +12,16 @@
     #map { 
       height: calc(100vh - 40px);
     }
-    .legend {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      background: white;
-      padding: 10px;
-      border-radius: 5px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-      z-index: 1000;
-    }
-    .legend-item {
-      display: flex;
-      align-items: center;
-      margin-bottom: 5px;
-    }
-    .legend-color {
-      width: 20px;
-      height: 20px;
-      margin-right: 5px;
+    .leaflet-tooltip { /* Style for the tooltip */
+      background: rgba(255, 255, 255, 0.8);
       border: 1px solid #ccc;
+      padding: 5px;
+      border-radius: 5px;
     }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  <div class="legend">
-    <strong>Land Use</strong>
-    <div class="legend-item">
-      <div class="legend-color" style="background-color: #ffffff"></div> Unassigned
-    </div>
-    <div class="legend-item">
-      <div class="legend-color" style="background-color: #4CAF50"></div> Green Space
-    </div>
-    <div class="legend-item">
-      <div class="legend-color" style="background-color: #2196F3"></div> Residential
-    </div>
-    <div class="legend-item">
-      <div class="legend-color" style="background-color: #FF9800"></div> Commercial
-    </div>
-    <div class="legend-item">
-      <div class="legend-color" style="background-color: #9E9E9E"></div> Other
-    </div>
-  </div>
   <button id="downloadButton">Download GeoJSON</button>
   <input type="file" id="uploadInput" accept=".geojson" style="display: none;"> 
   <button id="uploadButton">Upload GeoJSON</button> 
@@ -69,16 +36,16 @@
     const landUses = ['Unassigned', 'Green Space', 'Residential', 'Commercial', 'Other']; 
     const colors = ['#ffffff', '#4CAF50', '#2196F3', '#FF9800', '#9E9E9E']; 
 
-    let geojsonData = null; // Store the GeoJSON data globally
+    let geojsonData = null; 
 
     fetch('City_Landbank_2552617068183058004.geojson')
       .then(response => response.json())
       .then(data => {
-        geojsonData = data; // Store the data
-        loadGeoJSON(data); // Load the initial data
+        geojsonData = data; 
+        loadGeoJSON(data); 
       });
 
-    function loadGeoJSON(data) { // Function to load GeoJSON data
+    function loadGeoJSON(data) { 
       L.geoJSON(data, {
         style: function(feature) {
           const landUseIndex = landUses.indexOf(feature.properties.landUse || 'Unassigned');
@@ -90,6 +57,12 @@
           };
         },
         onEachFeature: function (feature, layer) {
+          layer.on('mouseover', function(e) {
+            const address = feature.properties.ADDRESS;
+            const landUse = feature.properties.landUse || 'Unassigned';
+            layer.bindTooltip(`Address: ${address}<br>Land Use: ${landUse}`).openTooltip();
+          });
+
           layer.on('click', function(e) {
             const currentLandUseIndex = landUses.indexOf(feature.properties.landUse || 'Unassigned');
             const newLandUseIndex = (currentLandUseIndex + 1) % landUses.length;
