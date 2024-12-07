@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <title>Parcel Color Changer</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -9,9 +10,11 @@
       font-family: sans-serif;
       margin: 0;
     }
-    #map { 
+
+    #map {
       height: calc(100vh - 40px);
     }
+
     .legend {
       position: absolute;
       top: 10px;
@@ -19,14 +22,16 @@
       background: white;
       padding: 10px;
       border-radius: 5px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
       z-index: 1000;
     }
+
     .legend-item {
       display: flex;
       align-items: center;
       margin-bottom: 5px;
     }
+
     .legend-color {
       width: 20px;
       height: 20px;
@@ -35,6 +40,7 @@
     }
   </style>
 </head>
+
 <body>
   <div id="map"></div>
   <div class="legend">
@@ -56,49 +62,87 @@
     </div>
   </div>
   <button id="downloadButton">Download GeoJSON</button>
-  <input type="file" id="uploadInput" accept=".geojson" style="display: none;"> 
-  <button id="uploadButton">Upload GeoJSON</button> 
+  <input type="file" id="uploadInput" accept=".geojson" style="display: none;">
+  <button id="uploadButton">Upload GeoJSON</button>
 
   <script>
-    const map = L.map('map').setView([41.49, -81.68], 13); 
+    const map = L.map('map').setView([41.49, -81.68], 13);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
 
-    const landUses = ['Unassigned', 'Green Space', 'Residential', 'Commercial', 'Other']; 
-    const colors = ['#ffffff', '#4CAF50', '#2196F3', '#FF9800', '#9E9E9E']; 
+    const landUses = ['Unassigned', 'Green Space', 'Residential', 'Commercial', 'Other'];
+    const colors = ['#ffffff', '#4CAF50', '#2196F3', '#FF9800', '#9E9E9E'];
 
-    let geojsonData = null; // Store the GeoJSON data globally
+    let geojsonData = null;
+    let selectedParcels = []; // Array to store selected parcels
 
     fetch('City_Landbank_2552617068183058004.geojson')
       .then(response => response.json())
       .then(data => {
-        geojsonData = data; // Store the data
-        loadGeoJSON(data); // Load the initial data
+        geojsonData = data;
+        loadGeoJSON(data);
       });
 
-    function loadGeoJSON(data) { // Function to load GeoJSON data
+    function loadGeoJSON(data) {
       L.geoJSON(data, {
-        style: function(feature) {
+        style: function (feature) {
           const landUseIndex = landUses.indexOf(feature.properties.landUse || 'Unassigned');
           return {
             color: '#ddd',
             weight: 1,
-            fillColor: colors[landUseIndex], 
+            fillColor: colors[landUseIndex],
             fillOpacity: 1
           };
         },
         onEachFeature: function (feature, layer) {
-          layer.on('click', function(e) {
-            const currentLandUseIndex = landUses.indexOf(feature.properties.landUse || 'Unassigned');
-            const newLandUseIndex = (currentLandUseIndex + 1) % landUses.length;
-            feature.properties.landUse = landUses[newLandUseIndex];
-            layer.setStyle({ fillColor: colors[newLandUseIndex] });
-            L.DomEvent.stopPropagation(e); 
+          layer.on('click', function (e) {
+            if (e.originalEvent.ctrlKey || e.originalEvent.metaKey) { // Check for Ctrl or Cmd key
+              if (selectedParcels.includes(layer)) {
+                selectedParcels = selectedParcels.filter(p => p !== layer); // Remove from selection
+              } else {
+                selectedParcels.push(layer); // Add to selection
+              }
+            } else {
+              // If not Ctrl/Cmd key, clear selection and treat as single parcel click
+              selectedParcels = [];
+              cycleLandUse(feature, layer);
+            }
+
+            // Highlight selected parcels (example - you can customize this)
+            selectedParcels.forEach(p => p.setStyle({ weight: 3 }));
+            L.DomEvent.stopPropagation(e);
           });
         }
       }).addTo(map);
+
+      // Click handler for the map to clear selection
+      map.on('click', function () {
+        selectedParcels = [];
+        // Reset styles to remove highlight (example)
+        map.eachLayer(layer => {
+          if (layer instanceof L.GeoJSON) {
+            layer.setStyle({ weight: 1 });
+          }
+        });
+      });
+    }
+
+    function cycleLandUse(feature, layer) {
+      const currentLandUseIndex = landUses.indexOf(feature.properties.landUse || 'Unassigned');
+      const newLandUseIndex = (currentLandUseIndex + 1) % landUses.length;
+      feature.properties.landUse = landUses[newLandUseIndex];
+
+      // Apply the change to all selected parcels
+      selectedParcels.forEach(parcel => {
+        if (parcel !== layer) { // Avoid double update for the clicked parcel
+          parcel.feature.properties.landUse = landUses[newLandUseIndex];
+          parcel.setStyle({ fillColor: colors[newLandUseIndex] });
+        }
+      });
+
+      layer.setStyle({ fillColor: colors[newLandUseIndex] });
     }
 
     // --- Download button functionality ---
