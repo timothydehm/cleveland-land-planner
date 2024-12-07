@@ -33,16 +33,32 @@
       margin-right: 5px;
       border: 1px solid #ccc;
     }
-    .selected-parcel { /* Style for selected parcels */
+    .selected-parcel { 
       fill-opacity: 0.8 !important; 
-      fill-color: #aaa !important; /* Darker color */
+      fill-color: #aaa !important; 
     }
   </style>
 </head>
 <body>
   <div id="map"></div>
   <div class="legend">
+    <strong>Land Use</strong>
+    <div class="legend-item">
+      <div class="legend-color" style="background-color: #ffffff"></div> Unassigned
     </div>
+    <div class="legend-item">
+      <div class="legend-color" style="background-color: #4CAF50"></div> Green Space
+    </div>
+    <div class="legend-item">
+      <div class="legend-color" style="background-color: #2196F3"></div> Residential
+    </div>
+    <div class="legend-item">
+      <div class="legend-color" style="background-color: #FF9800"></div> Commercial
+    </div>
+    <div class="legend-item">
+      <div class="legend-color" style="background-color: #9E9E9E"></div> Other
+    </div>
+  </div>
   <button id="downloadButton">Download GeoJSON</button>
   <input type="file" id="uploadInput" accept=".geojson" style="display: none;"> 
   <button id="uploadButton">Upload GeoJSON</button> 
@@ -59,7 +75,7 @@
 
     let geojsonData = null; 
     let selectedParcels = []; 
-    let isDragging = false; // Track dragging state
+    let isDragging = false; 
 
     fetch('City_Landbank_2552617068183058004.geojson')
       .then(response => response.json())
@@ -88,7 +104,7 @@
                 } else {
                   selectedParcels.push(layer);
                 }
-              } else if (!isDragging) { // Only cycle if not dragging
+              } else if (!isDragging) { 
                 selectedParcels = []; 
                 cycleLandUse(feature, layer); 
               }
@@ -99,7 +115,7 @@
             mousedown: function(e) {
               if (e.originalEvent.ctrlKey || e.originalEvent.metaKey) {
                 isDragging = true; 
-                map.dragging.disable(); // Disable map dragging while selecting
+                map.dragging.disable(); 
               }
             },
             mouseover: function(e) {
@@ -120,7 +136,7 @@
         mouseup: function() {
           if (isDragging) {
             isDragging = false; 
-            map.dragging.enable(); // Re-enable map dragging
+            map.dragging.enable(); 
           }
         }
       });
@@ -145,15 +161,14 @@
       map.eachLayer(layer => {
         if (layer instanceof L.GeoJSON) {
           if (selectedParcels.includes(layer)) {
-            layer.setStyle({ className: 'selected-parcel' }); // Add class for styling
+            layer.setStyle({ className: 'selected-parcel' }); 
           } else {
-            layer.setStyle({ className: '' }); // Remove class
+            layer.setStyle({ className: '' }); 
           }
         }
       });
     }
 
-    // --- Download button functionality ---
     document.getElementById('downloadButton').addEventListener('click', function() {
       if (geojsonData) {
         const geoJsonString = JSON.stringify(geojsonData); 
@@ -167,12 +182,11 @@
       }
     });
 
-    // --- Upload button functionality ---
     const uploadInput = document.getElementById('uploadInput');
     const uploadButton = document.getElementById('uploadButton');
 
     uploadButton.addEventListener('click', function() {
-      uploadInput.click(); // Trigger the hidden file input
+      uploadInput.click(); 
     });
 
     uploadInput.addEventListener('change', function(event) {
@@ -182,16 +196,15 @@
       reader.onload = function(event) {
         try {
           const uploadedData = JSON.parse(event.target.result);
-          geojsonData = uploadedData; // Update the global GeoJSON data
-          map.eachLayer(layer => { // Clear existing layers
+          geojsonData = uploadedData; 
+          map.eachLayer(layer => { 
             if (layer instanceof L.GeoJSON) {
               map.removeLayer(layer);
             }
           });
-          loadGeoJSON(uploadedData); // Load the uploaded data
+          loadGeoJSON(uploadedData); 
         } catch (error) {
           console.error('Error parsing GeoJSON:', error);
-          // Handle the error (e.g., display a message to the user)
         }
       };
 
