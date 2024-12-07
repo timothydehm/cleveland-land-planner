@@ -45,7 +45,7 @@
     <div class="legend">
       <strong>Land Use</strong>
       <div class="legend-item" data-land-use="Unassigned">
-        <div class="legend-color" style="background-color: #ffffff"></div> Unassigned (<span class="land-use-count">0</span> parcels, <span class="land-use-acres">0</span> acres)
+        <div class="legend-color" style="background-color: #ffffff"></div> Unassigned (<span class="land-use-count">0</span> parcels)
       </div>
       <div class="legend-item" data-land-use="Green Space">
         <div class="legend-color" style="background-color: #4CAF50"></div> Green Space (<span class="land-use-count">0</span> parcels, <span class="land-use-acres">0</span> acres)
@@ -79,7 +79,7 @@
     const landUseAcres = {}; 
 
     let geojsonData = null; 
-    let geojsonLayer = null; // Store the GeoJSON layer
+    let geojsonLayer = null; 
 
     fetch('City_Landbank_2552617068183058004.geojson')
       .then(response => response.json())
@@ -90,19 +90,21 @@
       });
 
     function initializeLandUseMetrics(data) {
-      landUseCounts = {}; // Reset counts
-      landUseAcres = {}; // Reset acreage
+      landUseCounts = {}; 
+      landUseAcres = {}; 
       data.features.forEach(feature => {
         const landUse = feature.properties.landUse || 'Unassigned';
         landUseCounts[landUse] = (landUseCounts[landUse] || 0) + 1;
-        landUseAcres[landUse] = (landUseAcres[landUse] || 0) + calculateParcelArea(feature);
+        if (landUse !== 'Unassigned') { // Only calculate acreage for assigned land uses
+          landUseAcres[landUse] = (landUseAcres[landUse] || 0) + calculateParcelArea(feature);
+        }
       });
       updateLandUseMetrics(); 
     }
 
     function loadGeoJSON(data) { 
       if (geojsonLayer) {
-        map.removeLayer(geojsonLayer); // Remove previous layer if it exists
+        map.removeLayer(geojsonLayer); 
       }
       geojsonLayer = L.geoJSON(data, {
         style: function(feature) {
@@ -133,13 +135,15 @@
         newLandUseIndex = (newLandUseIndex + 1) % landUses.length;
       }
 
-      // Update counts and acreage
+      // Update counts and acreage (only if not 'Unassigned')
       landUseCounts[currentLandUse]--;
       landUseCounts[landUses[newLandUseIndex]]++;
-
-      const areaAcres = calculateParcelArea(feature);
-      landUseAcres[currentLandUse] -= areaAcres;
-      landUseAcres[landUses[newLandUseIndex]] += areaAcres;
+      if (currentLandUse !== 'Unassigned') {
+        landUseAcres[currentLandUse] -= calculateParcelArea(feature);
+      }
+      if (landUses[newLandUseIndex] !== 'Unassigned') {
+        landUseAcres[landUses[newLandUseIndex]] += calculateParcelArea(feature);
+      }
 
       feature.properties.landUse = landUses[newLandUseIndex];
       layer.setStyle({ fillColor: colors[newLandUseIndex] });
@@ -153,6 +157,8 @@
         const acresElement = document.querySelector(`.legend-item[data-land-use="${landUse}"] .land-use-acres`);
         if (countElement) {
           countElement.textContent = landUseCounts[landUse] || 0;
+        }
+        if (acresElement) {
           acresElement.textContent = (landUseAcres[landUse] || 0).toFixed(2); 
         }
       });
@@ -167,6 +173,7 @@
       }
       return 0;
     }
+
 
     document.getElementById('downloadButton').addEventListener('click', function() {
       if (geojsonData) {
