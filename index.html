@@ -65,7 +65,11 @@
   </div>
 
   <script>
-    // ... (map initialization, tile layer) ...
+    const map = L.map('map').setView([41.49, -81.68], 13); // Map initialization
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
 
     const landUses = ['Unassigned', 'Green Space', 'Residential', 'Commercial', 'Other']; 
     const colors = ['#ffffff', '#4CAF50', '#2196F3', '#FF9800', '#9E9E9E']; 
