@@ -10,40 +10,84 @@
       margin: 0;
     }
     #map { 
-      height: calc(100vh - 40px);
+      height: calc(100vh - 80px); /* Adjusted height for control panel */
     }
-    .leaflet-tooltip { /* Style for the tooltip */
-      background: rgba(255, 255, 255, 0.8);
-      border: 1px solid #ccc;
-      padding: 5px;
+    .control-panel {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: white;
+      padding: 10px;
       border-radius: 5px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      z-index: 1000;
+    }
+    .legend {
+      margin-bottom: 10px;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      margin-bottom: 5px;
+    }
+    .legend-color {
+      width: 20px;
+      height: 20px;
+      margin-right: 5px;
+      border: 1px solid #ccc;
     }
   </style>
 </head>
 <body>
   <div id="map"></div>
-  <button id="downloadButton">Download GeoJSON</button>
-  <input type="file" id="uploadInput" accept=".geojson" style="display: none;"> 
-  <button id="uploadButton">Upload GeoJSON</button> 
+  <div class="control-panel">
+    <div class="legend">
+      <strong>Land Use</strong>
+      <div class="legend-item">
+        <div class="legend-color" style="background-color: #ffffff"></div> Unassigned
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="background-color: #4CAF50"></div> Green Space
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="background-color: #2196F3"></div> Residential
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="background-color: #FF9800"></div> Commercial
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="background-color: #9E9E9E"></div> Other
+      </div>
+    </div>
+    <button id="downloadButton">Download</button>
+    <input type="file" id="uploadInput" accept=".geojson" style="display: none;"> 
+    <button id="uploadButton">Upload</button> 
+  </div>
 
   <script>
-    const map = L.map('map').setView([41.49, -81.68], 13); 
-
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    }).addTo(map);
+    // ... (map initialization, tile layer) ...
 
     const landUses = ['Unassigned', 'Green Space', 'Residential', 'Commercial', 'Other']; 
     const colors = ['#ffffff', '#4CAF50', '#2196F3', '#FF9800', '#9E9E9E']; 
+    const landUseLimits = { 'Residential': 5000, 'Commercial': 5000 }; // Limits for each land use
+    const landUseCounts = {}; // Keep track of land use counts
 
     let geojsonData = null; 
 
     fetch('City_Landbank_2552617068183058004.geojson')
       .then(response => response.json())
       .then(data => {
-        geojsonData = data; 
+        geojsonData = data;
+        initializeLandUseCounts(data); // Initialize counts
         loadGeoJSON(data); 
       });
+
+    function initializeLandUseCounts(data) {
+      data.features.forEach(feature => {
+        const landUse = feature.properties.landUse || 'Unassigned';
+        landUseCounts[landUse] = (landUseCounts[landUse] || 0) + 1;
+      });
+    }
 
     function loadGeoJSON(data) { 
       L.geoJSON(data, {
@@ -57,21 +101,30 @@
           };
         },
         onEachFeature: function (feature, layer) {
-          layer.on('mouseover', function(e) {
-            const address = feature.properties.ADDRESS;
-            const landUse = feature.properties.landUse || 'Unassigned';
-            layer.bindTooltip(`Address: ${address}<br>Land Use: ${landUse}`).openTooltip();
-          });
-
           layer.on('click', function(e) {
-            const currentLandUseIndex = landUses.indexOf(feature.properties.landUse || 'Unassigned');
-            const newLandUseIndex = (currentLandUseIndex + 1) % landUses.length;
-            feature.properties.landUse = landUses[newLandUseIndex];
-            layer.setStyle({ fillColor: colors[newLandUseIndex] });
+            cycleLandUse(feature, layer);
             L.DomEvent.stopPropagation(e); 
           });
         }
       }).addTo(map);
+    }
+
+    function cycleLandUse(feature, layer) {
+      let currentLandUseIndex = landUses.indexOf(feature.properties.landUse || 'Unassigned');
+      let newLandUseIndex = (currentLandUseIndex + 1) % landUses.length;
+
+      // Skip land uses that have reached their limit
+      while (landUseLimits[landUses[newLandUseIndex]] && 
+             landUseCounts[landUses[newLandUseIndex]] >= landUseLimits[landUses[newLandUseIndex]]) {
+        newLandUseIndex = (newLandUseIndex + 1) % landUses.length;
+      }
+
+      // Update counts
+      landUseCounts[landUses[currentLandUseIndex]]--;
+      landUseCounts[landUses[newLandUseIndex]] = (landUseCounts[landUses[newLandUseIndex]] || 0) + 1;
+
+      feature.properties.landUse = landUses[newLandUseIndex];
+      layer.setStyle({ fillColor: colors[newLandUseIndex] });
     }
 
     // --- Download button functionality ---
