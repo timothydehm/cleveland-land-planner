@@ -4,13 +4,14 @@
   <title>Parcel Color Changer</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-geometryutil@0.9.1/src/leaflet.geometryutil.js"></script>
   <style>
     body {
       font-family: sans-serif;
       margin: 0;
     }
     #map { 
-      height: calc(100vh - 80px); /* Adjusted height for control panel */
+      height: calc(100vh - 80px); 
     }
     .control-panel {
       position: absolute;
@@ -44,19 +45,19 @@
     <div class="legend">
       <strong>Land Use</strong>
       <div class="legend-item" data-land-use="Unassigned">
-        <div class="legend-color" style="background-color: #ffffff"></div> Unassigned (<span class="land-use-count">0</span>)
+        <div class="legend-color" style="background-color: #ffffff"></div> Unassigned (<span class="land-use-count">0</span> parcels, <span class="land-use-acres">0</span> acres)
       </div>
       <div class="legend-item" data-land-use="Green Space">
-        <div class="legend-color" style="background-color: #4CAF50"></div> Green Space (<span class="land-use-count">0</span>)
+        <div class="legend-color" style="background-color: #4CAF50"></div> Green Space (<span class="land-use-count">0</span> parcels, <span class="land-use-acres">0</span> acres)
       </div>
       <div class="legend-item" data-land-use="Residential">
-        <div class="legend-color" style="background-color: #2196F3"></div> Residential (<span class="land-use-count">0</span>)
+        <div class="legend-color" style="background-color: #2196F3"></div> Residential (<span class="land-use-count">0</span> parcels, <span class="land-use-acres">0</span> acres)
       </div>
       <div class="legend-item" data-land-use="Commercial">
-        <div class="legend-color" style="background-color: #FF9800"></div> Commercial (<span class="land-use-count">0</span>)
+        <div class="legend-color" style="background-color: #FF9800"></div> Commercial (<span class="land-use-count">0</span> parcels, <span class="land-use-acres">0</span> acres)
       </div>
       <div class="legend-item" data-land-use="Other">
-        <div class="legend-color" style="background-color: #9E9E9E"></div> Other (<span class="land-use-count">0</span>)
+        <div class="legend-color" style="background-color: #9E9E9E"></div> Other (<span class="land-use-count">0</span> parcels, <span class="land-use-acres">0</span> acres)
       </div>
     </div>
     <button id="downloadButton">Download</button>
@@ -75,27 +76,35 @@
     const colors = ['#ffffff', '#4CAF50', '#2196F3', '#FF9800', '#9E9E9E']; 
     const landUseLimits = { 'Residential': 5000, 'Commercial': 5000 }; 
     const landUseCounts = {}; 
+    const landUseAcres = {}; 
 
     let geojsonData = null; 
+    let geojsonLayer = null; // Store the GeoJSON layer
 
     fetch('City_Landbank_2552617068183058004.geojson')
       .then(response => response.json())
       .then(data => {
         geojsonData = data;
-        initializeLandUseCounts(data); 
+        initializeLandUseMetrics(data); 
         loadGeoJSON(data); 
       });
 
-    function initializeLandUseCounts(data) {
+    function initializeLandUseMetrics(data) {
+      landUseCounts = {}; // Reset counts
+      landUseAcres = {}; // Reset acreage
       data.features.forEach(feature => {
         const landUse = feature.properties.landUse || 'Unassigned';
         landUseCounts[landUse] = (landUseCounts[landUse] || 0) + 1;
+        landUseAcres[landUse] = (landUseAcres[landUse] || 0) + calculateParcelArea(feature);
       });
-      updateLandUseCounts(); 
+      updateLandUseMetrics(); 
     }
 
     function loadGeoJSON(data) { 
-      L.geoJSON(data, {
+      if (geojsonLayer) {
+        map.removeLayer(geojsonLayer); // Remove previous layer if it exists
+      }
+      geojsonLayer = L.geoJSON(data, {
         style: function(feature) {
           const landUseIndex = landUses.indexOf(feature.properties.landUse || 'Unassigned');
           return {
@@ -115,7 +124,8 @@
     }
 
     function cycleLandUse(feature, layer) {
-      let currentLandUseIndex = landUses.indexOf(feature.properties.landUse || 'Unassigned');
+      const currentLandUse = feature.properties.landUse || 'Unassigned';
+      let currentLandUseIndex = landUses.indexOf(currentLandUse);
       let newLandUseIndex = (currentLandUseIndex + 1) % landUses.length;
 
       while (landUseLimits[landUses[newLandUseIndex]] && 
@@ -123,22 +133,39 @@
         newLandUseIndex = (newLandUseIndex + 1) % landUses.length;
       }
 
-      landUseCounts[landUses[currentLandUseIndex]]--;
-      landUseCounts[landUses[newLandUseIndex]] = (landUseCounts[landUses[newLandUseIndex]] || 0) + 1;
+      // Update counts and acreage
+      landUseCounts[currentLandUse]--;
+      landUseCounts[landUses[newLandUseIndex]]++;
+
+      const areaAcres = calculateParcelArea(feature);
+      landUseAcres[currentLandUse] -= areaAcres;
+      landUseAcres[landUses[newLandUseIndex]] += areaAcres;
 
       feature.properties.landUse = landUses[newLandUseIndex];
       layer.setStyle({ fillColor: colors[newLandUseIndex] });
 
-      updateLandUseCounts(); 
+      updateLandUseMetrics(); 
     }
 
-    function updateLandUseCounts() {
+    function updateLandUseMetrics() {
       landUses.forEach(landUse => {
         const countElement = document.querySelector(`.legend-item[data-land-use="${landUse}"] .land-use-count`);
+        const acresElement = document.querySelector(`.legend-item[data-land-use="${landUse}"] .land-use-acres`);
         if (countElement) {
           countElement.textContent = landUseCounts[landUse] || 0;
+          acresElement.textContent = (landUseAcres[landUse] || 0).toFixed(2); 
         }
       });
+    }
+
+    function calculateParcelArea(feature) {
+      const parcelGeometry = feature.geometry;
+      if (parcelGeometry.type === 'Polygon') {
+        const latLngs = parcelGeometry.coordinates[0].map(coords => L.latLng(coords[1], coords[0])); 
+        const areaSqMeters = L.GeometryUtil.geodesicArea(latLngs);
+        return areaSqMeters / 4046.86;
+      }
+      return 0;
     }
 
     document.getElementById('downloadButton').addEventListener('click', function() {
@@ -169,12 +196,8 @@
         try {
           const uploadedData = JSON.parse(event.target.result);
           geojsonData = uploadedData; 
-          map.eachLayer(layer => { 
-            if (layer instanceof L.GeoJSON) {
-              map.removeLayer(layer);
-            }
-          });
-          loadGeoJSON(uploadedData); 
+          loadGeoJSON(uploadedData); // Reload the GeoJSON layer
+          initializeLandUseMetrics(uploadedData); // Re-initialize counts and acreage
         } catch (error) {
           console.error('Error parsing GeoJSON:', error);
         }
