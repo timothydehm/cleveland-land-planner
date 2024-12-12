@@ -58,6 +58,9 @@
       <div class="legend-item" data-land-use="Other">
         <div class="legend-color" style="background-color: #9E9E9E"></div> Other (<span class="land-use-count">0</span>)
       </div>
+      <div class="legend-item" data-land-use="Conflict">
+    <div class="legend-color" style="background-color: #FF0000"></div> Conflict (<span class="land-use-count">0</span>)
+</div>
       <div class="branch-controls">
   <strong>Versions</strong>
   <select id="branchSelect">
@@ -71,6 +74,8 @@
     <input type="file" id="uploadInput" accept=".geojson" style="display: none;"> 
     <button id="uploadButton">Upload</button> 
   </div>
+
+
 
   <script>
     const map = L.map('map').setView([41.49, -81.68], 13); 
@@ -102,25 +107,30 @@
       updateLandUseCounts(); 
     }
 
-    function loadGeoJSON(data) { 
-      L.geoJSON(data, {
+function loadGeoJSON(data) {
+    L.geoJSON(data, {
         style: function(feature) {
-          const landUseIndex = landUses.indexOf(feature.properties.landUse || 'Unassigned');
-          return {
-            color: '#ddd',
-            weight: 1,
-            fillColor: colors[landUseIndex], 
-            fillOpacity: 1
-          };
+            const landUseIndex = landUses.indexOf(feature.properties.landUse || 'Unassigned');
+            return {
+                color: '#ddd',
+                weight: 1,
+                fillColor: colors[landUseIndex],
+                fillOpacity: 1
+            };
         },
-        onEachFeature: function (feature, layer) {
-          layer.on('click', function(e) {
-            cycleLandUse(feature, layer);
-            L.DomEvent.stopPropagation(e); 
-          });
+        onEachFeature: function(feature, layer) {
+            layer.on('click', function(e) {
+                if (feature.properties.landUse === 'Conflict') {
+                    const details = feature.properties.conflictDetails;
+                    alert(`Conflict Details:\nUploaded version: ${details.uploaded}\nCurrent version: ${details.current}`);
+                } else {
+                    cycleLandUse(feature, layer);
+                }
+                L.DomEvent.stopPropagation(e);
+            });
         }
-      }).addTo(map);
-    }
+    }).addTo(map);
+}
 
     function cycleLandUse(feature, layer) {
       let currentLandUseIndex = landUses.indexOf(feature.properties.landUse || 'Unassigned');
@@ -149,18 +159,23 @@
       });
     }
 
-    document.getElementById('downloadButton').addEventListener('click', function() {
-      if (geojsonData) {
-        const geoJsonString = JSON.stringify(geojsonData); 
-        const blob = new Blob([geoJsonString], { type: 'application/json' });
+document.getElementById('downloadButton').addEventListener('click', function() {
+    if (geojsonData) {
+        const downloadData = {
+            version: currentBranch,
+            timestamp: new Date().toISOString(),
+            data: geojsonData
+        };
+        const dataString = JSON.stringify(downloadData);
+        const blob = new Blob([dataString], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
 
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'land_use_plan.geojson';
+        a.download = `land_use_plan_${currentBranch}.geojson`;
         a.click();
-      }
-    });
+    }
+});
 
     const uploadInput = document.getElementById('uploadInput');
     const uploadButton = document.getElementById('uploadButton');
@@ -169,24 +184,56 @@
       uploadInput.click(); 
     });
 
-    uploadInput.addEventListener('change', function(event) {
-      const file = event.target.files[0];
-      const reader = new FileReader();
+uploadInput.addEventListener('change', function(event) {
+    const file = event.target.files[0];
+    const reader = new FileReader();
 
-      reader.onload = function(event) {
+    reader.onload = function(event) {
         try {
-          const uploadedData = JSON.parse(event.target.result);
-          geojsonData = uploadedData; 
-          map.eachLayer(layer => { 
-            if (layer instanceof L.GeoJSON) {
-              map.removeLayer(layer);
+            const uploadedData = JSON.parse(event.target.result);
+            const uploadedFeatures = uploadedData.data.features;
+            const currentFeatures = geojsonData.features;
+
+            // Check for conflicts
+            uploadedFeatures.forEach((uploadedFeature, index) => {
+                const currentFeature = currentFeatures[index];
+                if (currentFeature && 
+                    uploadedFeature.properties.landUse !== currentFeature.properties.landUse) {
+                    // Mark as conflict
+                    uploadedFeature.properties.landUse = 'Conflict';
+                    uploadedFeature.properties.conflictDetails = {
+                        uploaded: uploadedFeature.properties.landUse,
+                        current: currentFeature.properties.landUse
+                    };
+                }
+            });
+
+            // Update display
+            map.eachLayer(layer => {
+                if (layer instanceof L.GeoJSON) {
+                    map.removeLayer(layer);
+                }
+            });
+
+            geojsonData = uploadedData.data;
+            initializeLandUseCounts(geojsonData);
+            loadGeoJSON(geojsonData);
+
+            // Show conflict summary
+            const conflicts = uploadedFeatures.filter(f => f.properties.landUse === 'Conflict').length;
+            if (conflicts > 0) {
+                alert(`Found ${conflicts} conflicts. Conflicting parcels are marked in red.`);
             }
-          });
-          loadGeoJSON(uploadedData); 
         } catch (error) {
-          console.error('Error parsing GeoJSON:', error);
+            console.error('Error processing upload:', error);
+            alert('Error loading file. Please ensure it is a valid file.');
         }
-      };
+    };
+
+    if (file) {
+        reader.readAsText(file);
+    }
+});
 
       if (file) {
         reader.readAsText(file);
