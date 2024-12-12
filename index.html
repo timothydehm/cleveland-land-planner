@@ -244,14 +244,17 @@
     let currentBranch = 'main';
 
     // Load initial data
-   fetch('City_Landbank_2552617068183058004.geojson')
+  console.log('Attempting to fetch GeoJSON...');
+fetch('/cleveland-land-planner/City_Landbank_2552617068183058004.geojson')
     .then(response => {
+        console.log('Response status:', response.status);
         if (!response.ok) {
-            throw new Error('Network response was not ok');
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
         return response.json();
     })
     .then(data => {
+        console.log('Data loaded successfully');
         branches.main.data = JSON.parse(JSON.stringify(data));
         geojsonData = branches.main.data;
         initializeLandUseCounts(data);
@@ -259,7 +262,8 @@
     })
     .catch(error => {
         console.error('Error loading initial data:', error);
-        alert('Error loading map data. Please try refreshing the page.');
+        console.error('Full error details:', error.message);
+        alert('Error loading map data. Please check the console for details.');
     });
 
     function initializeLandUseCounts(data) {
