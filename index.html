@@ -122,6 +122,13 @@
       </select>
       <button id="createBranchButton">Create New Version</button>
     </div>
+
+    <div class="file-controls">
+      <div class="legend-header">Save/Load Data</div>
+      <button id="downloadButton">Download GeoJSON</button>
+      <input type="file" id="uploadInput" accept=".geojson" style="display: none;">
+      <button id="uploadButton">Upload GeoJSON</button>
+    </div>
   </div>
 
   <script>
@@ -290,11 +297,68 @@
             alert('Error loading map data. Please try refreshing the page.');
         });
 
+    // Download functionality
+    function downloadGeoJSON() {
+        if (!geojsonData) {
+            alert('No data available to download');
+            return;
+        }
+
+        // Create a copy of the data with the current state
+        const dataToDownload = JSON.parse(JSON.stringify(geojsonData));
+        
+        // Create blob and download link
+        const blob = new Blob([JSON.stringify(dataToDownload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `landuse_plan_${currentBranch}_${new Date().toISOString().split('T')[0]}.geojson`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    // Upload functionality
+    function handleFileUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const uploadedData = JSON.parse(e.target.result);
+                
+                // Validate the uploaded data has the expected structure
+                if (!uploadedData.type || !uploadedData.features) {
+                    throw new Error('Invalid GeoJSON format');
+                }
+
+                // Load the uploaded data
+                geojsonData = uploadedData;
+                branches[currentBranch].data = JSON.parse(JSON.stringify(uploadedData));
+                initializeLandUseCounts(uploadedData);
+                loadGeoJSON(uploadedData);
+
+                alert('Data loaded successfully!');
+            } catch (error) {
+                console.error('Error parsing uploaded file:', error);
+                alert('Error loading file. Please make sure it is a valid GeoJSON file.');
+            }
+        };
+        reader.readAsText(file);
+    }
+
     // Event Listeners
     document.getElementById('createBranchButton').addEventListener('click', createBranch);
     document.getElementById('branchSelect').addEventListener('change', (e) => {
         switchBranch(e.target.value);
     });
+    document.getElementById('downloadButton').addEventListener('click', downloadGeoJSON);
+    document.getElementById('uploadButton').addEventListener('click', () => {
+        document.getElementById('uploadInput').click();
+    });
+    document.getElementById('uploadInput').addEventListener('change', handleFileUpload);
   </script>
 </body>
 </html>
