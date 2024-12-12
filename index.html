@@ -58,6 +58,14 @@
       <div class="legend-item" data-land-use="Other">
         <div class="legend-color" style="background-color: #9E9E9E"></div> Other (<span class="land-use-count">0</span>)
       </div>
+      <div class="branch-controls">
+  <strong>Versions</strong>
+  <select id="branchSelect">
+    <option value="main">main</option>
+  </select>
+  <button id="createBranchButton">Create New Version</button>
+  <button id="mergeBranchButton">Merge to Main</button>
+</div>
     </div>
     <button id="downloadButton">Download</button>
     <input type="file" id="uploadInput" accept=".geojson" style="display: none;"> 
