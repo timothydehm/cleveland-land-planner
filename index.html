@@ -56,7 +56,6 @@
     .branch-controls {
       padding: 20px 0;
       border-top: 1px solid rgba(0,0,0,0.1);
-      border-bottom: 1px solid rgba(0,0,0,0.1);
       margin-bottom: 20px;
     }
     select, button {
@@ -78,8 +77,52 @@
     button:hover {
       background: #0052a3;
     }
-    #uploadInput {
+
+    /* Conflict Panel Styles */
+    .conflict-panel {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.1);
+      z-index: 1000;
+      width: 300px;
       display: none;
+    }
+    .conflict-panel.visible {
+      display: block;
+    }
+    .conflict-header {
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: #cc0000;
+    }
+    .conflict-list {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    .conflict-item {
+      padding: 12px;
+      margin-bottom: 8px;
+      background: #f8f8f8;
+      border-radius: 8px;
+    }
+    .version-tag {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+      margin: 0 4px;
+    }
+    .version-tag.main {
+      background: #e3f2fd;
+      color: #1976d2;
+    }
+    .version-tag.branch {
+      background: #e8f5e9;
+      color: #388e3c;
     }
   </style>
 </head>
@@ -128,10 +171,18 @@
       <button id="createBranchButton">Create New Version</button>
       <button id="mergeBranchButton">Merge to Main</button>
     </div>
+  </div>
 
-    <button id="downloadButton">Download</button>
-    <input type="file" id="uploadInput" accept=".geojson">
-    <button id="uploadButton">Upload</button>
+  <!-- Conflict Resolution Panel -->
+  <div id="conflictPanel" class="conflict-panel">
+    <div class="conflict-header">Conflicts Found</div>
+    <div id="conflictList" class="conflict-list"></div>
+    <div class="conflict-summary">
+      <div id="conflictCount"></div>
+      <button id="resolveAllMainButton">Keep All Main Version</button>
+      <button id="resolveAllBranchButton">Keep All Branch Version</button>
+      <button id="finishMergeButton" style="background: #4CAF50;">Complete Merge</button>
+    </div>
   </div>
 
   <script>
@@ -148,6 +199,7 @@
     const landUseLimits = { 'Residential': 5000, 'Commercial': 5000 };
     let landUseCounts = {};
     let geojsonData = null;
+    let activeConflicts = [];
 
     // Branch management
     let branches = {
@@ -164,7 +216,7 @@
         .then(response => response.json())
         .then(data => {
             geojsonData = data;
-            branches.main.data = data;
+            branches.main.data = JSON.parse(JSON.stringify(data));
             initializeLandUseCounts(data);
             loadGeoJSON(data);
         })
@@ -196,8 +248,7 @@
             onEachFeature: function(feature, layer) {
                 layer.on('click', function(e) {
                     if (feature.properties.landUse === 'Conflict') {
-                        const details = feature.properties.conflictDetails;
-                        alert(`Conflict Details:\nUploaded version: ${details.uploaded}\nCurrent version: ${details.current}`);
+                        showConflictDetails(feature);
                     } else {
                         cycleLandUse(feature, layer);
                     }
@@ -207,16 +258,22 @@
         }).addTo(map);
     }
 
+    function showConflictDetails(feature) {
+        const details = feature.properties.conflictDetails;
+        const message = `Conflict Details:\nMain version: ${details.mainUse}\nBranch version: ${details.branchUse}`;
+        alert(message);
+    }
+
     function cycleLandUse(feature, layer) {
         let currentLandUseIndex = landUses.indexOf(feature.properties.landUse || 'Unassigned');
         let newLandUseIndex = (currentLandUseIndex + 1) % (landUses.length - 1); // Skip Conflict
 
         while (landUseLimits[landUses[newLandUseIndex]] &&
                landUseCounts[landUses[newLandUseIndex]] >= landUseLimits[landUses[newLandUseIndex]]) {
-            newLandUseIndex = (newLandUseIndex + 1) % (landUses.length - 1); // Skip Conflict
+            newLandUseIndex = (newLandUseIndex + 1) % (landUses.length - 1);
         }
 
-        if (currentLandUseIndex < landUses.length - 1) { // Don't count if it's a conflict
+        if (currentLandUseIndex < landUses.length - 1) {
             landUseCounts[landUses[currentLandUseIndex]]--;
         }
         landUseCounts[landUses[newLandUseIndex]] = (landUseCounts[landUses[newLandUseIndex]] || 0) + 1;
@@ -226,8 +283,7 @@
 
         updateLandUseCounts();
         
-        // Update branch data
-        branches[currentBranch].data = geojsonData;
+        branches[currentBranch].data = JSON.parse(JSON.stringify(geojsonData));
         branches[currentBranch].landUseCounts = {...landUseCounts};
     }
 
@@ -287,6 +343,7 @@
             });
             loadGeoJSON(geojsonData);
             updateLandUseCounts();
+            hideConflictPanel();
         }
     }
 
@@ -295,102 +352,123 @@
             alert('Already on main version');
             return;
         }
-        
-        if (confirm(`Are you sure you want to merge changes from "${currentBranch}" to main?`)) {
-            branches.main.data = JSON.parse(JSON.stringify(geojsonData));
-            branches.main.landUseCounts = {...landUseCounts};
-            
-            document.getElementById('branchSelect').value = 'main';
-            switchBranch('main');
-            
-            alert('Changes merged to main version!');
+
+        // Compare current branch with main to find conflicts
+        const mainFeatures = branches.main.data.features;
+        const currentFeatures = geojsonData.features;
+        activeConflicts = [];
+
+        currentFeatures.forEach((feature, index) => {
+            const mainFeature = mainFeatures[index];
+            if (mainFeature && 
+                feature.properties.landUse !== mainFeature.properties.landUse) {
+                
+                // Mark as conflict and store details
+                feature.properties.landUse = 'Conflict';
+                feature.properties.conflictDetails = {
+                    mainUse: mainFeature.properties.landUse,
+                    branchUse: feature.properties.landUse,
+                    index: index
+                };
+                activeConflicts.push(feature);
+            }
+        });
+
+        if (activeConflicts.length > 0) {
+            showConflictPanel();
+        } else {
+            completeMerge();
         }
     }
 
-    // File handling
-    document.getElementById('downloadButton').addEventListener('click', function() {
-        if (geojsonData) {
-            const downloadData = {
-                version: currentBranch,
-                timestamp: new Date().toISOString(),
-                data: geojsonData
-            };
-            const dataString = JSON.stringify(downloadData);
-            const blob = new Blob([dataString], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `land_use_plan_${currentBranch}.geojson`;
-            a.click();
+    function showConflictPanel() {
+        const panel = document.getElementById('conflictPanel');
+        const list = document.getElementById('conflictList');
+        const countDiv = document.getElementById('conflictCount');
+        
+        list.innerHTML = '';
+        activeConflicts.forEach((conflict, index) => {
+            const details = conflict.properties.conflictDetails;
+            const item = document.createElement('div');
+            item.className = 'conflict-item';
+            item.innerHTML = `
+                <div>Parcel ${index + 1}:</div>
+                <div>Main version: <span class="version-tag main">${details.mainUse}</span></div>
+                <div>Branch version: <span class="version-tag branch">${details.branchUse}</span></div>
+                <div class="conflict-actions">
+                    <button onclick="resolveConflict(${details.index}, 'main')">Keep Main</button>
+                    <button onclick="resolveConflict(${details.index}, 'branch')">Keep Branch</button>
+                </div>
+            `;
+            list.appendChild(item);
+        });
+
+        countDiv.textContent = `${activeConflicts.length} conflicts found`;
+        panel.classList.add('visible');
+    }
+
+    function hideConflictPanel() {
+        document.getElementById('conflictPanel').classList.remove('visible');
+    }
+
+    function resolveConflict(index, version) {
+        const feature = geojsonData.features[index];
+        const details = feature.properties.conflictDetails;
+        
+        feature.properties.landUse = version === 'main' ? details.mainUse : details.branchUse;
+        delete feature.properties.conflictDetails;
+        
+        activeConflicts = activeConflicts.filter(c => c.properties.conflictDetails.index !== index);
+        
+        if (activeConflicts.length === 0) {
+            completeMerge();
+        } else {
+            refreshMap();
+            showConflictPanel();
         }
-    });
+    }
 
-    document.getElementById('uploadButton').addEventListener('click', function() {
-        document.getElementById('uploadInput').click();
-    });
+    function resolveAllConflicts(version) {
+        activeConflicts.forEach(conflict => {
+            const details = conflict.properties.conflictDetails;
+            conflict.properties.landUse = version === 'main' ? details.mainUse : details.branchUse;
+            delete conflict.properties.conflictDetails;
+        });
+        
+        activeConflicts = [];
+        completeMerge();
+    }
 
-    document.getElementById('uploadInput').addEventListener('change', function(event) {
-        const file = event.target.files[0];
-        const reader = new FileReader();
+    function completeMerge() {
+        branches.main.data = JSON.parse(JSON.stringify(geojsonData));
+        branches.main.landUseCounts = {...landUseCounts};
+        
+        document.getElementById('branchSelect').value = 'main';
+        switchBranch('main');
+        hideConflictPanel();
+        
+        alert('Changes successfully merged to main version!');
+    }
 
-        reader.onload = function(event) {
-            try {
-                const uploadedData = JSON.parse(event.target.result);
-                const uploadedFeatures = uploadedData.data.features;
-                const currentFeatures = geojsonData.features;
-
-                // Check for conflicts
-                uploadedFeatures.forEach((uploadedFeature, index) => {
-                    const currentFeature = currentFeatures[index];
-                    if (currentFeature && 
-                        uploadedFeature.properties.landUse !== currentFeature.properties.landUse) {
-                        // Mark as conflict
-                        uploadedFeature.properties.landUse = 'Conflict';
-                        uploadedFeature.properties.conflictDetails = {
-                            uploaded: uploadedFeature.properties.landUse,
-                            current: currentFeature.properties.landUse
-                        };
-                    }
-                });
-
-                // Update display
-                map.eachLayer(layer => {
-                    if (layer instanceof L.GeoJSON) {
-                        map.removeLayer(layer);
-                    }
-                });
-
-                geojsonData = uploadedData.data;
-                initializeLandUseCounts(geojsonData);
-                loadGeoJSON(geojsonData);
-
-                // Show conflict summary
-                const conflicts = uploadedFeatures.filter(f => f.properties.landUse === 'Conflict').length;
-                if (conflicts > 0) {
-                    alert(`Found ${conflicts} conflicts. Conflicting parcels are marked in red.`);
-                }
-            } catch (error) {
-                console.error('Error processing upload:', error);
-                alert('Error loading file. Please ensure it is a valid file.');
+    function refreshMap() {
+        map.eachLayer(layer => {
+            if (layer instanceof L.GeoJSON) {
+                map.removeLayer(layer);
             }
-        };
+        });
+        loadGeoJSON(geojsonData);
+        updateLandUseCounts();
+    }
 
-        reader.onerror = function() {
-            alert('Error reading file');
-        };
-
-        if (file) {
-            reader.readAsText(file);
-        }
-    });
-
-    // Branch event listeners
+    // Event Listeners
     document.getElementById('createBranchButton').addEventListener('click', createBranch);
     document.getElementById('mergeBranchButton').addEventListener('click', mergeBranch);
     document.getElementById('branchSelect').addEventListener('change', (e) => {
         switchBranch(e.target.value);
     });
+    document.getElementById('resolveAllMainButton').addEventListener('click', () => resolveAllConflicts('main'));
+    document.getElementById('resolveAllBranchButton').addEventListener('click', () => resolveAllConflicts('branch'));
+    document.getElementById('finishMergeButton').addEventListener('click', completeMerge);
   </script>
 </body>
 </html>
