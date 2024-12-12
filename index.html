@@ -1,40 +1,85 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Parcel Color Changer</title>
+  <title>Land Use Planner</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     body {
-      font-family: sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       margin: 0;
     }
     #map { 
-      height: calc(100vh - 80px); /* Adjusted height for control panel */
+      height: 100vh;
+      width: 100vw;
     }
     .control-panel {
       position: absolute;
-      top: 10px;
-      left: 10px;
-      background: white;
-      padding: 10px;
-      border-radius: 5px;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      top: 20px;
+      left: 20px;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.1);
       z-index: 1000;
+      width: 280px;
     }
     .legend {
-      margin-bottom: 10px;
+      margin-bottom: 20px;
+    }
+    .legend-header {
+      font-weight: 600;
+      margin-bottom: 12px;
     }
     .legend-item {
       display: flex;
       align-items: center;
-      margin-bottom: 5px;
+      padding: 8px;
+      margin-bottom: 4px;
+      border-radius: 6px;
+      transition: background-color 0.2s;
+    }
+    .legend-item:hover {
+      background-color: rgba(0,0,0,0.05);
     }
     .legend-color {
-      width: 20px;
-      height: 20px;
-      margin-right: 5px;
-      border: 1px solid #ccc;
+      width: 24px;
+      height: 24px;
+      margin-right: 12px;
+      border-radius: 6px;
+      border: 2px solid rgba(0,0,0,0.1);
+    }
+    .land-use-count {
+      margin-left: auto;
+      color: #666;
+    }
+    .branch-controls {
+      padding: 20px 0;
+      border-top: 1px solid rgba(0,0,0,0.1);
+      border-bottom: 1px solid rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    select, button {
+      width: 100%;
+      padding: 10px;
+      margin: 4px 0;
+      border-radius: 8px;
+      border: 1px solid rgba(0,0,0,0.1);
+      font-size: 14px;
+    }
+    button {
+      background: #0066cc;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    button:hover {
+      background: #0052a3;
+    }
+    #uploadInput {
+      display: none;
     }
   </style>
 </head>
@@ -42,202 +87,309 @@
   <div id="map"></div>
   <div class="control-panel">
     <div class="legend">
-      <strong>Land Use</strong>
+      <div class="legend-header">Land Use Categories</div>
       <div class="legend-item" data-land-use="Unassigned">
-        <div class="legend-color" style="background-color: #ffffff"></div> Unassigned (<span class="land-use-count">0</span>)
+        <div class="legend-color" style="background-color: #ffffff"></div>
+        <span>Unassigned</span>
+        <span class="land-use-count">0</span>
       </div>
       <div class="legend-item" data-land-use="Green Space">
-        <div class="legend-color" style="background-color: #4CAF50"></div> Green Space (<span class="land-use-count">0</span>)
+        <div class="legend-color" style="background-color: #4CAF50"></div>
+        <span>Green Space</span>
+        <span class="land-use-count">0</span>
       </div>
       <div class="legend-item" data-land-use="Residential">
-        <div class="legend-color" style="background-color: #2196F3"></div> Residential (<span class="land-use-count">0</span>)
+        <div class="legend-color" style="background-color: #2196F3"></div>
+        <span>Residential</span>
+        <span class="land-use-count">0</span>
       </div>
       <div class="legend-item" data-land-use="Commercial">
-        <div class="legend-color" style="background-color: #FF9800"></div> Commercial (<span class="land-use-count">0</span>)
+        <div class="legend-color" style="background-color: #FF9800"></div>
+        <span>Commercial</span>
+        <span class="land-use-count">0</span>
       </div>
       <div class="legend-item" data-land-use="Other">
-        <div class="legend-color" style="background-color: #9E9E9E"></div> Other (<span class="land-use-count">0</span>)
+        <div class="legend-color" style="background-color: #9E9E9E"></div>
+        <span>Other</span>
+        <span class="land-use-count">0</span>
       </div>
       <div class="legend-item" data-land-use="Conflict">
-    <div class="legend-color" style="background-color: #FF0000"></div> Conflict (<span class="land-use-count">0</span>)
-</div>
-      <div class="branch-controls">
-  <strong>Versions</strong>
-  <select id="branchSelect">
-    <option value="main">main</option>
-  </select>
-  <button id="createBranchButton">Create New Version</button>
-  <button id="mergeBranchButton">Merge to Main</button>
-</div>
+        <div class="legend-color" style="background-color: #FF0000"></div>
+        <span>Conflict</span>
+        <span class="land-use-count">0</span>
+      </div>
     </div>
+
+    <div class="branch-controls">
+      <div class="legend-header">Version Control</div>
+      <select id="branchSelect">
+        <option value="main">main</option>
+      </select>
+      <button id="createBranchButton">Create New Version</button>
+      <button id="mergeBranchButton">Merge to Main</button>
+    </div>
+
     <button id="downloadButton">Download</button>
-    <input type="file" id="uploadInput" accept=".geojson" style="display: none;"> 
-    <button id="uploadButton">Upload</button> 
+    <input type="file" id="uploadInput" accept=".geojson">
+    <button id="uploadButton">Upload</button>
   </div>
 
-
-
   <script>
-    const map = L.map('map').setView([41.49, -81.68], 13); 
+    // Initialize map
+    const map = L.map('map').setView([41.49, -81.68], 13);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
 
-    const landUses = ['Unassigned', 'Green Space', 'Residential', 'Commercial', 'Other']; 
-    const colors = ['#ffffff', '#4CAF50', '#2196F3', '#FF9800', '#9E9E9E']; 
-    const landUseLimits = { 'Residential': 5000, 'Commercial': 5000 }; 
-    const landUseCounts = {}; 
+    // Initialize variables
+    const landUses = ['Unassigned', 'Green Space', 'Residential', 'Commercial', 'Other', 'Conflict'];
+    const colors = ['#ffffff', '#4CAF50', '#2196F3', '#FF9800', '#9E9E9E', '#FF0000'];
+    const landUseLimits = { 'Residential': 5000, 'Commercial': 5000 };
+    let landUseCounts = {};
+    let geojsonData = null;
 
-    let geojsonData = null; 
+    // Branch management
+    let branches = {
+        main: {
+            name: 'main',
+            data: null,
+            landUseCounts: {}
+        }
+    };
+    let currentBranch = 'main';
 
+    // Load initial data
     fetch('City_Landbank_2552617068183058004.geojson')
-      .then(response => response.json())
-      .then(data => {
-        geojsonData = data;
-        initializeLandUseCounts(data); 
-        loadGeoJSON(data); 
-      });
+        .then(response => response.json())
+        .then(data => {
+            geojsonData = data;
+            branches.main.data = data;
+            initializeLandUseCounts(data);
+            loadGeoJSON(data);
+        })
+        .catch(error => {
+            console.error('Error loading data:', error);
+            alert('Error loading map data. Please try refreshing the page.');
+        });
 
     function initializeLandUseCounts(data) {
-      data.features.forEach(feature => {
-        const landUse = feature.properties.landUse || 'Unassigned';
-        landUseCounts[landUse] = (landUseCounts[landUse] || 0) + 1;
-      });
-      updateLandUseCounts(); 
+        landUseCounts = {};
+        data.features.forEach(feature => {
+            const landUse = feature.properties.landUse || 'Unassigned';
+            landUseCounts[landUse] = (landUseCounts[landUse] || 0) + 1;
+        });
+        updateLandUseCounts();
     }
 
-function loadGeoJSON(data) {
-    L.geoJSON(data, {
-        style: function(feature) {
-            const landUseIndex = landUses.indexOf(feature.properties.landUse || 'Unassigned');
-            return {
-                color: '#ddd',
-                weight: 1,
-                fillColor: colors[landUseIndex],
-                fillOpacity: 1
-            };
-        },
-        onEachFeature: function(feature, layer) {
-            layer.on('click', function(e) {
-                if (feature.properties.landUse === 'Conflict') {
-                    const details = feature.properties.conflictDetails;
-                    alert(`Conflict Details:\nUploaded version: ${details.uploaded}\nCurrent version: ${details.current}`);
-                } else {
-                    cycleLandUse(feature, layer);
-                }
-                L.DomEvent.stopPropagation(e);
-            });
-        }
-    }).addTo(map);
-}
+    function loadGeoJSON(data) {
+        L.geoJSON(data, {
+            style: function(feature) {
+                const landUseIndex = landUses.indexOf(feature.properties.landUse || 'Unassigned');
+                return {
+                    color: '#ddd',
+                    weight: 1,
+                    fillColor: colors[landUseIndex],
+                    fillOpacity: 1
+                };
+            },
+            onEachFeature: function(feature, layer) {
+                layer.on('click', function(e) {
+                    if (feature.properties.landUse === 'Conflict') {
+                        const details = feature.properties.conflictDetails;
+                        alert(`Conflict Details:\nUploaded version: ${details.uploaded}\nCurrent version: ${details.current}`);
+                    } else {
+                        cycleLandUse(feature, layer);
+                    }
+                    L.DomEvent.stopPropagation(e);
+                });
+            }
+        }).addTo(map);
+    }
 
     function cycleLandUse(feature, layer) {
-      let currentLandUseIndex = landUses.indexOf(feature.properties.landUse || 'Unassigned');
-      let newLandUseIndex = (currentLandUseIndex + 1) % landUses.length;
+        let currentLandUseIndex = landUses.indexOf(feature.properties.landUse || 'Unassigned');
+        let newLandUseIndex = (currentLandUseIndex + 1) % (landUses.length - 1); // Skip Conflict
 
-      while (landUseLimits[landUses[newLandUseIndex]] && 
-             landUseCounts[landUses[newLandUseIndex]] >= landUseLimits[landUses[newLandUseIndex]]) {
-        newLandUseIndex = (newLandUseIndex + 1) % landUses.length;
-      }
+        while (landUseLimits[landUses[newLandUseIndex]] &&
+               landUseCounts[landUses[newLandUseIndex]] >= landUseLimits[landUses[newLandUseIndex]]) {
+            newLandUseIndex = (newLandUseIndex + 1) % (landUses.length - 1); // Skip Conflict
+        }
 
-      landUseCounts[landUses[currentLandUseIndex]]--;
-      landUseCounts[landUses[newLandUseIndex]] = (landUseCounts[landUses[newLandUseIndex]] || 0) + 1;
+        if (currentLandUseIndex < landUses.length - 1) { // Don't count if it's a conflict
+            landUseCounts[landUses[currentLandUseIndex]]--;
+        }
+        landUseCounts[landUses[newLandUseIndex]] = (landUseCounts[landUses[newLandUseIndex]] || 0) + 1;
 
-      feature.properties.landUse = landUses[newLandUseIndex];
-      layer.setStyle({ fillColor: colors[newLandUseIndex] });
+        feature.properties.landUse = landUses[newLandUseIndex];
+        layer.setStyle({ fillColor: colors[newLandUseIndex] });
 
-      updateLandUseCounts(); 
+        updateLandUseCounts();
+        
+        // Update branch data
+        branches[currentBranch].data = geojsonData;
+        branches[currentBranch].landUseCounts = {...landUseCounts};
     }
 
     function updateLandUseCounts() {
-      landUses.forEach(landUse => {
-        const countElement = document.querySelector(`.legend-item[data-land-use="${landUse}"] .land-use-count`);
-        if (countElement) {
-          countElement.textContent = landUseCounts[landUse] || 0;
+        landUses.forEach(landUse => {
+            const countElement = document.querySelector(`.legend-item[data-land-use="${landUse}"] .land-use-count`);
+            if (countElement) {
+                countElement.textContent = landUseCounts[landUse] || 0;
+            }
+        });
+    }
+
+    // Branch management functions
+    function createBranch() {
+        const branchName = prompt('Enter new version name:');
+        if (!branchName) return;
+        
+        if (branches[branchName]) {
+            alert('A version with this name already exists.');
+            return;
         }
-      });
-    }
-
-document.getElementById('downloadButton').addEventListener('click', function() {
-    if (geojsonData) {
-        const downloadData = {
-            version: currentBranch,
-            timestamp: new Date().toISOString(),
-            data: geojsonData
+        
+        if (!/^[a-zA-Z0-9-_]+$/.test(branchName)) {
+            alert('Please use only letters, numbers, hyphens, and underscores.');
+            return;
+        }
+        
+        branches[branchName] = {
+            name: branchName,
+            data: JSON.parse(JSON.stringify(geojsonData)),
+            landUseCounts: {...landUseCounts}
         };
-        const dataString = JSON.stringify(downloadData);
-        const blob = new Blob([dataString], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `land_use_plan_${currentBranch}.geojson`;
-        a.click();
+        
+        const option = document.createElement('option');
+        option.value = branchName;
+        option.textContent = branchName;
+        document.getElementById('branchSelect').appendChild(option);
+        
+        document.getElementById('branchSelect').value = branchName;
+        switchBranch(branchName);
+        
+        alert(`New version "${branchName}" created and activated!`);
     }
-});
 
-    const uploadInput = document.getElementById('uploadInput');
-    const uploadButton = document.getElementById('uploadButton');
-
-    uploadButton.addEventListener('click', function() {
-      uploadInput.click(); 
-    });
-
-uploadInput.addEventListener('change', function(event) {
-    const file = event.target.files[0];
-    const reader = new FileReader();
-
-    reader.onload = function(event) {
-        try {
-            const uploadedData = JSON.parse(event.target.result);
-            const uploadedFeatures = uploadedData.data.features;
-            const currentFeatures = geojsonData.features;
-
-            // Check for conflicts
-            uploadedFeatures.forEach((uploadedFeature, index) => {
-                const currentFeature = currentFeatures[index];
-                if (currentFeature && 
-                    uploadedFeature.properties.landUse !== currentFeature.properties.landUse) {
-                    // Mark as conflict
-                    uploadedFeature.properties.landUse = 'Conflict';
-                    uploadedFeature.properties.conflictDetails = {
-                        uploaded: uploadedFeature.properties.landUse,
-                        current: currentFeature.properties.landUse
-                    };
-                }
-            });
-
-            // Update display
+    function switchBranch(branchName) {
+        if (!branches[branchName]) return;
+        
+        if (currentBranch !== branchName) {
+            currentBranch = branchName;
+            geojsonData = JSON.parse(JSON.stringify(branches[branchName].data));
+            landUseCounts = {...branches[branchName].landUseCounts};
+            
             map.eachLayer(layer => {
                 if (layer instanceof L.GeoJSON) {
                     map.removeLayer(layer);
                 }
             });
-
-            geojsonData = uploadedData.data;
-            initializeLandUseCounts(geojsonData);
             loadGeoJSON(geojsonData);
-
-            // Show conflict summary
-            const conflicts = uploadedFeatures.filter(f => f.properties.landUse === 'Conflict').length;
-            if (conflicts > 0) {
-                alert(`Found ${conflicts} conflicts. Conflicting parcels are marked in red.`);
-            }
-        } catch (error) {
-            console.error('Error processing upload:', error);
-            alert('Error loading file. Please ensure it is a valid file.');
+            updateLandUseCounts();
         }
-    };
-
-    if (file) {
-        reader.readAsText(file);
     }
-});
 
-      if (file) {
-        reader.readAsText(file);
-      }
+    function mergeBranch() {
+        if (currentBranch === 'main') {
+            alert('Already on main version');
+            return;
+        }
+        
+        if (confirm(`Are you sure you want to merge changes from "${currentBranch}" to main?`)) {
+            branches.main.data = JSON.parse(JSON.stringify(geojsonData));
+            branches.main.landUseCounts = {...landUseCounts};
+            
+            document.getElementById('branchSelect').value = 'main';
+            switchBranch('main');
+            
+            alert('Changes merged to main version!');
+        }
+    }
+
+    // File handling
+    document.getElementById('downloadButton').addEventListener('click', function() {
+        if (geojsonData) {
+            const downloadData = {
+                version: currentBranch,
+                timestamp: new Date().toISOString(),
+                data: geojsonData
+            };
+            const dataString = JSON.stringify(downloadData);
+            const blob = new Blob([dataString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `land_use_plan_${currentBranch}.geojson`;
+            a.click();
+        }
+    });
+
+    document.getElementById('uploadButton').addEventListener('click', function() {
+        document.getElementById('uploadInput').click();
+    });
+
+    document.getElementById('uploadInput').addEventListener('change', function(event) {
+        const file = event.target.files[0];
+        const reader = new FileReader();
+
+        reader.onload = function(event) {
+            try {
+                const uploadedData = JSON.parse(event.target.result);
+                const uploadedFeatures = uploadedData.data.features;
+                const currentFeatures = geojsonData.features;
+
+                // Check for conflicts
+                uploadedFeatures.forEach((uploadedFeature, index) => {
+                    const currentFeature = currentFeatures[index];
+                    if (currentFeature && 
+                        uploadedFeature.properties.landUse !== currentFeature.properties.landUse) {
+                        // Mark as conflict
+                        uploadedFeature.properties.landUse = 'Conflict';
+                        uploadedFeature.properties.conflictDetails = {
+                            uploaded: uploadedFeature.properties.landUse,
+                            current: currentFeature.properties.landUse
+                        };
+                    }
+                });
+
+                // Update display
+                map.eachLayer(layer => {
+                    if (layer instanceof L.GeoJSON) {
+                        map.removeLayer(layer);
+                    }
+                });
+
+                geojsonData = uploadedData.data;
+                initializeLandUseCounts(geojsonData);
+                loadGeoJSON(geojsonData);
+
+                // Show conflict summary
+                const conflicts = uploadedFeatures.filter(f => f.properties.landUse === 'Conflict').length;
+                if (conflicts > 0) {
+                    alert(`Found ${conflicts} conflicts. Conflicting parcels are marked in red.`);
+                }
+            } catch (error) {
+                console.error('Error processing upload:', error);
+                alert('Error loading file. Please ensure it is a valid file.');
+            }
+        };
+
+        reader.onerror = function() {
+            alert('Error reading file');
+        };
+
+        if (file) {
+            reader.readAsText(file);
+        }
+    });
+
+    // Branch event listeners
+    document.getElementById('createBranchButton').addEventListener('click', createBranch);
+    document.getElementById('mergeBranchButton').addEventListener('click', mergeBranch);
+    document.getElementById('branchSelect').addEventListener('change', (e) => {
+        switchBranch(e.target.value);
     });
   </script>
 </body>
